@@ -65,7 +65,11 @@ class Shape3D:
                 raise Unrecoverable(''.join(['Axes argument was not found to be 3 orthnormal vectors:',str(axes)]))
         except Exception as e:
             raise Unrecoverable(''.join(['Failure defining 3D shape:\n',str(e)]))
-    
+        
+    def point_local_to_global(self,point):
+        '''Given u,v,w positions compute global position in x,y,z'''
+        return self.origin + np.dot(self.axes.T,point)
+
     def bounding_box_local(self,min_uvw,max_uvw):
         '''Return bounding box in local coordinate system'''
         raise NeverImplement('Abstract property bounding_box_local')
@@ -92,7 +96,7 @@ class Shape3D:
         # Convert from local to global coordinates
         vertices_xyz = np.zeros((3,8),dtype=FloatType)
         for column in range(8):
-            vertices_xyz[:,column] = self.origin + np.dot(self.axes,vertices_uvw[:,column])
+            vertices_xyz[:,column] = self.point_local_to_global(vertices_uvw[:,column])
         # Extract min/max from all 8 vertices
         min_xyz[0] = np.min(vertices_xyz[0,:])
         max_xyz[0] = np.max(vertices_xyz[0,:])
