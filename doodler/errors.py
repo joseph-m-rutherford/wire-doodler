@@ -32,3 +32,13 @@ class Unrecoverable(Exception):
         else:
             self.content = '\n'#.join(['Unknown error:',repr(error)])
         super().__init__(self,'\n'.join(['Unrecoverable error:',str(self.content)]))
+
+class NeverImplement(Unrecoverable):
+    '''Raise when a method is called that should never be implemented, such as abstract parent class function'''
+
+    def __init__(self,error):
+        '''Parent class retains the error message string'''
+        if type(error) is str:
+            super.__init__(self,error)
+        else:
+            raise Unrecoverable('NeverImplement requires a string argument')
