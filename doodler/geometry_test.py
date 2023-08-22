@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Copyright (c) 2023, Joseph M. Rutherford
 
-from geometry import vector3d, vector3d_equality, valid_tangent_coordinates, TOLERANCE, Cylinder
+from geometry import real_equality, vector3d, vector3d_equality, valid_tangent_coordinates, TOLERANCE, Cylinder
 
 import numpy as np
 
@@ -62,8 +62,24 @@ def test_cylinder_surface_tangent() -> None:
     assert valid_tangent_coordinates(1,1)
     assert not valid_tangent_coordinates(1.01,0.99)
     assert not valid_tangent_coordinates(0.99,1.01)
-    assert not valid_tangent_coordinates(1.01,1.01)   
-    
+    assert not valid_tangent_coordinates(1.01,1.01)
+    # Verify positions on outer cylinder wall.
+    htwo_rhalf_z = Cylinder((0.,0.,0.),(0.,0.,2.),0.5)
+    assert vector3d_equality(vector3d((0.5,0,0)),htwo_rhalf_z.surface_position_global(0,0),TOLERANCE)
+    assert vector3d_equality(vector3d((0,0.5,0)),htwo_rhalf_z.surface_position_global(0.25,0),TOLERANCE)
+    assert vector3d_equality(vector3d((-0.5,0,0)),htwo_rhalf_z.surface_position_global(0.5,0),TOLERANCE)
+    assert vector3d_equality(vector3d((0,-0.5,0)),htwo_rhalf_z.surface_position_global(0.75,0),TOLERANCE)
+    assert vector3d_equality(vector3d((0.5,0,0)),htwo_rhalf_z.surface_position_global(1,0),TOLERANCE)
+    assert vector3d_equality(vector3d((0.5,0,1)),htwo_rhalf_z.surface_position_global(0,0.5),TOLERANCE)
+    assert vector3d_equality(vector3d((0,0.5,1)),htwo_rhalf_z.surface_position_global(0.25,0.5),TOLERANCE)
+    assert vector3d_equality(vector3d((-0.5,0,1)),htwo_rhalf_z.surface_position_global(0.5,0.5),TOLERANCE)
+    assert vector3d_equality(vector3d((0,-0.5,1)),htwo_rhalf_z.surface_position_global(0.75,0.5),TOLERANCE)
+    assert vector3d_equality(vector3d((0.5,0,1)),htwo_rhalf_z.surface_position_global(1,0.5),TOLERANCE)
+    # Differential area such that integration over s in [0,1] and t in [0,1] yields surface area of cylinder
+    # Constant for all s,t
+    assert real_equality(2*np.pi*0.5*2,htwo_rhalf_z.surface_differential_area(0,0),TOLERANCE)
+    assert real_equality(2*np.pi*0.5*2,htwo_rhalf_z.surface_differential_area(0.1,0.9),TOLERANCE)
+    assert real_equality(2*np.pi*0.5*2,htwo_rhalf_z.surface_differential_area(1,1),TOLERANCE)
 
 
 

@@ -188,7 +188,7 @@ class Cylinder(Shape3D):
         s argument is scaled linearly in polar angle range [0,2*pi]
         t argument is scaled linearly in height position [0,height]'''
         if valid_tangent_coordinates(s,t):
-            return np.array([np.cos(2*np.pi*s)*self.radius,np.sin(2*np.pi*s)*self.radius,self.height*t],dtype=Real)
+            return np.array([np.cos(2*np.pi*s)*self.radius,np.sin(2*np.pi*s)*self.radius,self.height*(t-0.5)],dtype=Real)
         else:
             raise Unrecoverable('surface_position_local() requested at invalid coordinate ({},{})'.format(s,t))
 
@@ -196,4 +196,4 @@ class Cylinder(Shape3D):
         '''Differential area in orthogonal coordinates in unit square [0,1] x [0,1]
         
         s,t arguments are ignored because a cylinder is constant in differential area'''
-        return self.radius*self.height
+        return 2*np.pi*self.radius*self.height
