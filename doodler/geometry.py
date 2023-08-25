@@ -14,7 +14,7 @@ R3Axes = npt.NDArray  # Shape (3,3) and dtype=Real, pending https://peps.python.
 
 TOLERANCE = Real(1e-6)
 
-def vector3d(xyz: any) -> R3Vector:
+def r3vector_copy(xyz: any) -> R3Vector:
     '''Cast the argument into a length-3 array of floating point data'''
     result = None
     try:
@@ -30,7 +30,7 @@ def vector3d(xyz: any) -> R3Vector:
                                      str(xyz),':\n\t',str(e)]))
     return result
 
-def axes3d(axes: any) -> R3Axes:
+def axes3d_copy(axes: any) -> R3Axes:
     result = None
     try:
         result = R3Axes((3,3),dtype=Real)
@@ -58,8 +58,8 @@ def real_equality(a: Real, b: Real, tolerance: Real) -> bool:
     else:
         return abs(a-b)/max(abs(a),abs(b)) < tolerance
 
-def vector3d_equality(a: R3Vector, b: R3Vector, tolerance: Real) -> bool:
-    '''Compute relative difference between vector3d results'''
+def r3vector_equality(a: R3Vector, b: R3Vector, tolerance: Real) -> bool:
+    '''Compute relative difference between r3vector results'''
     if tolerance < TOLERANCE:
         raise Unrecoverable('Cannot perform relative equality with finer tolerance than module relative tolerance')
     max_length_squared = max(np.dot(a,a),np.dot(b,b))
@@ -90,8 +90,8 @@ class Shape3D:
         self.origin = None # Origin is in global coordinates
         self.axes = None # Axes are orthonormal vectors in global coordinates
         try:
-            self.origin = vector3d(origin)
-            self.axes = axes3d(axes)
+            self.origin = r3vector_copy(origin)
+            self.axes = axes3d_copy(axes)
         except Exception as e:
             raise Unrecoverable(''.join(['Failure defining 3D shape:\n',str(e)]))
         
@@ -156,8 +156,8 @@ class Cylinder(Shape3D):
             raise Unrecoverable(''.join(['Invalid cylinder radius \'',repr(radius),'\':',str(e)]))
         if self.radius <= 0:
             raise Unrecoverable(''.join(['Invalid cylinder radius ', str(self.radius),' <= 0']))
-        start = vector3d(start_center)
-        stop = vector3d(stop_center)
+        start = r3vector_copy(start_center)
+        stop = r3vector_copy(stop_center)
         segment = stop - start
         height = math.sqrt(np.dot(segment,segment))
         if height/radius <= TOLERANCE or radius/height <= TOLERANCE:
@@ -168,11 +168,11 @@ class Cylinder(Shape3D):
         # Pick least component of w for computing u,v axes
         v_segment = None
         if abs(w_axis[0]) <= abs(w_axis[1]) and abs(w_axis[0]) <= abs(w_axis[2]):
-            v_segment = vector3d((0,w_axis[2],-w_axis[1]))
+            v_segment = r3vector_copy((0,w_axis[2],-w_axis[1]))
         elif abs(w_axis[1]) <= abs(w_axis[2]) and abs(w_axis[1]) <= abs(w_axis[0]):
-            v_segment = vector3d((-w_axis[2],0,w_axis[0]))
+            v_segment = r3vector_copy((-w_axis[2],0,w_axis[0]))
         else: # abs(w_axis[2]) <= abs(w_axis[0]) and abs(w_axis[2]) <= abs(w_axis[1]) or they are equal
-            v_segment = vector3d((w_axis[1],-w_axis[0],0))
+            v_segment = r3vector_copy((w_axis[1],-w_axis[0],0))
         v_axis = v_segment/math.sqrt(np.dot(v_segment,v_segment))
         u_axis = np.cross(v_axis,w_axis)
         super().__init__((start+stop)/2,(u_axis,v_axis,w_axis))
