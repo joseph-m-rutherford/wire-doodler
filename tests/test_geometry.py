@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 # Copyright (c) 2023, Joseph M. Rutherford
 
-from geometry import real_equality, r3vector_copy, r3vector_equality, valid_tangent_coordinates, TOLERANCE, Cylinder
+import doodler
+from doodler import real_equality, r3vector_copy, r3vector_equality, TOLERANCE, Cylinder
 
 import numpy as np
 
@@ -18,6 +19,27 @@ def test_r3vector_copy() -> None:
     assert r3vector_equality(b,(3,2,1.),TOLERANCE)
     assert r3vector_equality(a,a_reference,TOLERANCE)
     assert not r3vector_equality(a,b,TOLERANCE)
+
+def test_tangent_coordinates() -> None:
+    from doodler.geometry import valid_tangent_coordinates, InvalidTangentCoordinates
+    import pytest
+    import random
+    tested_points = dict()
+    assert valid_tangent_coordinates(0,0)
+    for i in range(1000):
+        assert valid_tangent_coordinates(random.random(),random.random())
+    assert valid_tangent_coordinates(1,1)
+    assert not valid_tangent_coordinates(0.0,-0.01)
+    assert not valid_tangent_coordinates(-0.01,0.01)
+    assert not valid_tangent_coordinates(-0.01,-0.01)
+
+    # Confirm that Cylinder raises if bad parameters are used
+    htwo_rhalf_z = Cylinder((0.,0.,-1.),(0.,0.,1.),0.5)
+    with pytest.raises(InvalidTangentCoordinates):
+        htwo_rhalf_z.surface_differential_area(-1,0)
+    with pytest.raises(InvalidTangentCoordinates):
+        htwo_rhalf_z.surface_position_local(0,-1)        
+       
 
 def test_cylinder_bounding_box() -> None:
     '''Verify correct interpretation of position and orientation using bounding box vertices'''
@@ -54,17 +76,6 @@ def test_cylinder_bounding_box() -> None:
 
 
 def test_cylinder_surface_tangent() -> None:
-    assert not valid_tangent_coordinates(-0.01,-0.01)
-    assert not valid_tangent_coordinates(0.01,-0.01)
-    assert not valid_tangent_coordinates(-0.01,0.01)
-    assert not valid_tangent_coordinates(-0.01,-0.01)
-    assert valid_tangent_coordinates(0,0)
-    assert valid_tangent_coordinates(0,1)
-    assert valid_tangent_coordinates(1,0)
-    assert valid_tangent_coordinates(1,1)
-    assert not valid_tangent_coordinates(1.01,0.99)
-    assert not valid_tangent_coordinates(0.99,1.01)
-    assert not valid_tangent_coordinates(1.01,1.01)
     # Verify positions on outer cylinder wall.
     htwo_rhalf_z = Cylinder((0.,0.,0.),(0.,0.,2.),0.5)
     assert r3vector_equality((0.5,0,0),htwo_rhalf_z.surface_position_global(0,0),TOLERANCE)
@@ -82,9 +93,3 @@ def test_cylinder_surface_tangent() -> None:
     assert real_equality(2*np.pi*0.5*2,htwo_rhalf_z.surface_differential_area(0,0),TOLERANCE)
     assert real_equality(2*np.pi*0.5*2,htwo_rhalf_z.surface_differential_area(0.1,0.9),TOLERANCE)
     assert real_equality(2*np.pi*0.5*2,htwo_rhalf_z.surface_differential_area(1,1),TOLERANCE)
-
-
-
-test_r3vector_copy()
-test_cylinder_bounding_box()
-test_cylinder_surface_tangent() 

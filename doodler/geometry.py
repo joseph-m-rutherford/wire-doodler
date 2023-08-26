@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Copyright (c) 2023, Joseph M. Rutherford
 
-from errors import Recoverable, Unrecoverable, NeverImplement
+from .errors import Recoverable, Unrecoverable, NeverImplement
 
 import math
 import numpy as np
@@ -81,6 +81,9 @@ def valid_tangent_coordinates(s,t) -> bool:
     '''Method to confirm tangent coordinates are in unit square [0,1]x[0,1]'''
     return s >= 0. and s <= 1. and t >= 0. and t <= 1.
 
+class InvalidTangentCoordinates(Unrecoverable):
+    '''Raised when a coordinate is outside the unit square [0,1]x[0,1]'''
+    pass
 
 class Shape3D:
     '''Common base class for all 3D geometry'''
@@ -190,10 +193,13 @@ class Cylinder(Shape3D):
         if valid_tangent_coordinates(s,t):
             return np.array([np.cos(2*np.pi*s)*self.radius,np.sin(2*np.pi*s)*self.radius,self.height*(t-0.5)],dtype=Real)
         else:
-            raise Unrecoverable('surface_position_local() requested at invalid coordinate ({},{})'.format(s,t))
+            raise InvalidTangentCoordinates('surface_position_local() requested at invalid coordinate ({},{})'.format(s,t))
 
     def surface_differential_area(self,s,t) -> Real:
         '''Differential area in orthogonal coordinates in unit square [0,1] x [0,1]
         
         s,t arguments are ignored because a cylinder is constant in differential area'''
-        return 2*np.pi*self.radius*self.height
+        if valid_tangent_coordinates(s,t):
+            return Real(2*np.pi*self.radius*self.height)
+        else:
+            raise InvalidTangentCoordinates('surface_differential_area() requested at invalid coordinate ({},{})'.format(s,t))
