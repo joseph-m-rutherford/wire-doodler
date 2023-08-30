@@ -142,3 +142,57 @@ class Cylinder(Shape3D):
             return Real(2*np.pi*self.radius*self.height)
         else:
             raise InvalidTangentCoordinates('surface_differential_area() requested at invalid coordinate ({},{})'.format(s,t))
+
+class ClippedSphere(Shape3D):
+    '''Defines locus of points on a sphere and between two clipping planes'''
+    def __init__(self, start_center, start_direction, start_radius, stop_center, stop_direction, stop_radius):
+        # Confirm translation of radius values
+        try:
+            self.start_radius = Real(start_radius)
+        except Exception as e:
+            raise Unrecoverable(''.join(['Invalid sphere first clip radius \'',repr(start_radius),'\':',str(e)]))
+        if self.start_radius <= 0:
+            raise Unrecoverable(''.join(['Invalid sphere first clip radius ', str(self.start_radius),' <= 0']))
+        try:
+            self.stop_radius = Real(stop_radius)
+        except Exception as e:
+            raise Unrecoverable(''.join(['Invalid sphere second clip radius \'',repr(stop_radius),'\':',str(e)]))
+        if self.stop_radius <= 0:
+            raise Unrecoverable(''.join(['Invalid sphere second clip radius ', str(self.stop_radius),' <= 0']))
+        
+        # Define clipping plane for start, stop faces
+        self.start = r3vector_copy(start_center)
+        self.start_normal = r3vector_copy(start_direction)
+        start_normal_length = math.sqrt(np.dot(self.start_normal,self.start_normal))
+        if abs(start_normal_length-1.) > TOLERANCE:
+            raise Unrecoverable('Invalid start normal vector with non-unity length')
+        else:
+            self.start_normal /= start_normal_length
+        self.stop = r3vector_copy(stop_center)
+        self.stop_normal = r3vector_copy(stop_direction)
+        stop_normal_length = math.sqrt(np.dot(self.stop_normal,self.stop_normal))
+        if abs(stop_normal_length-1.) > TOLERANCE:
+            raise Unrecoverable('Invalid stop normal vector with non-unity length')
+        else:
+            self.stop_normal /= stop_normal_length
+
+        # The clipping planes with fixed radii define 2 circles
+        #   - one in the start (South) hemisphere
+        #   - one in the stop (North) hemisphere
+        # TODO: Compute the corresponding unclipped sphere
+
+        # Define local coordinate system
+        segment = self.stop - self.start
+        height = math.sqrt(np.dot(segment,segment))
+        w_axis = segment/height
+        # Pick least component of w for computing u,v axes
+        v_segment = None
+        if abs(w_axis[0]) <= abs(w_axis[1]) and abs(w_axis[0]) <= abs(w_axis[2]):
+            v_segment = r3vector_copy((0,w_axis[2],-w_axis[1]))
+        elif abs(w_axis[1]) <= abs(w_axis[2]) and abs(w_axis[1]) <= abs(w_axis[0]):
+            v_segment = r3vector_copy((-w_axis[2],0,w_axis[0]))
+        else: # abs(w_axis[2]) <= abs(w_axis[0]) and abs(w_axis[2]) <= abs(w_axis[1]) or they are equal
+            v_segment = r3vector_copy((w_axis[1],-w_axis[0],0))
+        v_axis = v_segment/math.sqrt(np.dot(v_segment,v_segment))
+        u_axis = np.cross(v_axis,w_axis)
+        super().__init__((start+stop)/2,(u_axis,v_axis,w_axis))
