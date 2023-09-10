@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 # Copyright (c) 2023, Joseph M. Rutherford
-from doodler import errors, r3
-from doodler.errors import Unrecoverable, NeverImplement
-from doodler.r3 import Real, R3Axes, R3Vector, r3vector_copy, axes3d_copy
-import numpy as np
 
-TOLERANCE = Real(1e-6)
+from doodler import common, errors, r3
+from doodler.common import Real
+from doodler.errors import Unrecoverable, NeverImplement
+from doodler.r3 import R3Axes, R3Vector, axes3d_copy, r3vector_copy, TOLERANCE
+
+import numpy as np
 
 def flip_element(argument: R3Vector, index: int) -> None:
     '''Reverses sign of one element in array'''
