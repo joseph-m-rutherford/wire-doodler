@@ -32,11 +32,11 @@ class Shape3D:
 
     def __init__(self,origin:R3Vector, axes:R3Axes):
         '''Primarily intended as a base class for position, orientation'''
-        self.origin = None # Origin is in global coordinates
-        self.axes = None # Axes are orthonormal vectors in global coordinates
+        self._origin = None # Origin is in global coordinates
+        self._axes = None # Axes are orthonormal vectors in global coordinates
         try:
-            self.origin = r3vector_copy(origin)
-            self.axes = axes3d_copy(axes)
+            self._origin = r3vector_copy(origin)
+            self._axes = axes3d_copy(axes)
         except Exception as e:
             raise Unrecoverable(''.join(['Failure defining 3D shape:\n',str(e)]))
     
@@ -51,7 +51,7 @@ class Shape3D:
         
     def point_local_to_global(self,point:R3Vector) -> R3Vector:
         '''Given u,v,w positions compute global position in x,y,z'''
-        return self.origin + np.dot(self.axes.T,point)
+        return self._origin + np.dot(self._axes.T,point)
 
     def bounding_box_local(self,min_uvw:R3Vector,max_uvw:R3Vector) -> None:
         '''Return bounding box in local coordinate system'''

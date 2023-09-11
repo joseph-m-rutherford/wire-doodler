@@ -134,24 +134,14 @@ class ClippedSphere(Shape3D):
         '''Cylinder is periodic in s, not periodic in t; returns (True,False)'''
         return (True,False)
 
-    @property
-    def radius(self):
-        '''Unclipped sphere radius'''
-        return self._radius
-    
-    @property
-    def center(self):
-        '''Global center point of unclipped sphere used as origin in local coordinate'''
-        return self._center
-
     def bounding_box_local(self, min_uvw:R3Vector, max_uvw:R3Vector) -> None:
         '''Return bounding box in local coordinate system'''
-        # All dimensions are limited by self.radius
+        # All dimensions are limited by radius
         # N,S hemispheres each may be clipped by a tilted plane.
         # Clipping along radial vector results in a circle flattening that side.
         # Center of clip is at self.offset
         # Addition to w dir is sin(theta)*circle_radius
         # Addition to u,v dirs is cos_theta*circle_radius
 
-        min_uvw[:] = (-self.radius,-self.radius,-self._radius)
-        max_uvw[:] = (self.radius,self.radius,self.radius)
+        min_uvw[:] = (-self._radius,-self._radius,-self._radius)
+        max_uvw[:] = (self._radius,self._radius,self._radius)
