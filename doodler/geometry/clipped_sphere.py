@@ -14,7 +14,7 @@ class ClippedSphere(Shape3D):
 
     class ClipPlane:
         '''Clipping planes defined in CartesianR3 for use on a sphere'''
-        def __init__(self, direction: R3Vector, radius: Real):
+        def __init__(self, direction:R3Vector, radius:Real):
             '''
             Define clipping plane as a radial unit normal and a distance along normal
 
@@ -29,7 +29,7 @@ class ClippedSphere(Shape3D):
             return self._direction
         
         @direction.setter
-        def direction(self,direction: R3Vector) -> None:
+        def direction(self, direction:R3Vector) -> None:
             if abs(Real(1) - math.sqrt(np.dot(direction,direction))) > TOLERANCE:
                 raise Unrecoverable('Cannot clip at non unit direction |{}| != 1.'.format(direction))
             self._direction = direction
@@ -40,7 +40,7 @@ class ClippedSphere(Shape3D):
             return self._radius
         
         @radius.setter
-        def radius(self,radius: Real) -> None:
+        def radius(self,radius:Real) -> None:
             if radius < Real(0):
                 raise Unrecoverable('Cannot clip sphere at radius < 0')
             # Snap radius to 0 if within TOLERANCE
@@ -54,7 +54,7 @@ class ClippedSphere(Shape3D):
             '''Position in global coordinates: direction*radius'''
             return self._direction*self._radius
 
-    def __init__(self, center: R3Vector, radius: Real, clips: list[ClipPlane]):
+    def __init__(self, center:R3Vector, radius:Real, clips: list[ClipPlane]):
         '''
         Initialize a clipped sphere
 
@@ -139,7 +139,7 @@ class ClippedSphere(Shape3D):
         '''Global center point of unclipped sphere used as origin in local coordinate'''
         return self._center
 
-    def bounding_box_local(self,min_uvw,max_uvw) -> None:
+    def bounding_box_local(self, min_uvw:R3Vector, max_uvw:R3Vector) -> None:
         '''Return bounding box in local coordinate system'''
         # All dimensions are limited by self.radius
         # N,S hemispheres each may be clipped by a tilted plane.

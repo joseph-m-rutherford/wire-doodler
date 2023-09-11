@@ -10,7 +10,7 @@ import numpy as np
 
 class Cylinder(Shape3D):
     '''Defines the locus of points a fixed axial radius from a line segment'''
-    def __init__(self,start_center, stop_center, radius):
+    def __init__(self,start_center:R3Vector, stop_center:R3Vector, radius:Real):
         try:
             self.radius = Real(radius)
         except Exception as e:
@@ -38,12 +38,12 @@ class Cylinder(Shape3D):
         u_axis = np.cross(v_axis,w_axis)
         super().__init__((start+stop)/2,(u_axis,v_axis,w_axis))
 
-    def bounding_box_local(self,min_uvw,max_uvw) -> None:
+    def bounding_box_local(self, min_uvw:R3Vector, max_uvw:R3Vector) -> None:
         '''Return bounding box in local coordinate system'''
         min_uvw[:] = (-self.radius,-self.radius,-self.height/2)
         max_uvw[:] = (self.radius,self.radius,self.height/2)
     
-    def surface_position_local(self,s,t) -> R3Vector:
+    def surface_position_local(self, s:Real, t:Real) -> R3Vector:
         '''Cylinder is traversed by orthogonal coordinates in unit square [0,1] x [0,1]
         
         s argument is scaled linearly in polar angle range [0,2*pi]
@@ -53,7 +53,7 @@ class Cylinder(Shape3D):
         else:
             raise InvalidTangentCoordinates('surface_position_local() requested at invalid coordinate ({},{})'.format(s,t))
 
-    def surface_differential_area(self,s,t) -> Real:
+    def surface_differential_area(self, s:Real, t:Real) -> Real:
         '''Differential area in orthogonal coordinates in unit square [0,1] x [0,1]
         
         s,t arguments are ignored because a cylinder is constant in differential area'''

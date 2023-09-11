@@ -2,13 +2,13 @@
 # Copyright (c) 2023, Joseph M. Rutherford
 
 from doodler import common, errors, r3
-from doodler.common import Real
+from doodler.common import Index, Real
 from doodler.errors import Unrecoverable, NeverImplement
 from doodler.r3 import R3Axes, R3Vector, axes3d_copy, r3vector_copy, TOLERANCE
 
 import numpy as np
 
-def flip_element(argument: R3Vector, index: int) -> None:
+def flip_element(argument:R3Vector, index: Index) -> None:
     '''Reverses sign of one element in array'''
     result = np.copy(argument)
     result[index] *= -1
@@ -30,7 +30,7 @@ class InvalidClippingPlane(Unrecoverable):
 class Shape3D:
     '''Common base class for all 3D geometry'''
 
-    def __init__(self,origin: R3Vector, axes: R3Axes):
+    def __init__(self,origin:R3Vector, axes:R3Axes):
         '''Primarily intended as a base class for position, orientation'''
         self.origin = None # Origin is in global coordinates
         self.axes = None # Axes are orthonormal vectors in global coordinates
@@ -40,15 +40,15 @@ class Shape3D:
         except Exception as e:
             raise Unrecoverable(''.join(['Failure defining 3D shape:\n',str(e)]))
         
-    def point_local_to_global(self,point) -> R3Vector:
+    def point_local_to_global(self,point:R3Vector) -> R3Vector:
         '''Given u,v,w positions compute global position in x,y,z'''
         return self.origin + np.dot(self.axes.T,point)
 
-    def bounding_box_local(self,min_uvw,max_uvw) -> None:
+    def bounding_box_local(self,min_uvw:R3Vector,max_uvw:R3Vector) -> None:
         '''Return bounding box in local coordinate system'''
         raise NeverImplement('Abstract method bounding_box_local()')
     
-    def bounding_box_global(self,min_xyz,max_xyz) -> None:
+    def bounding_box_global(self,min_xyz:R3Vector,max_xyz:R3Vector) -> None:
         '''Return bounding box in global coordinate system'''
         # This could be implemented for a minimal bounding box using specific knowledge of subclass.
         # For the time being, accept expanding the global bounding box using outer corners of local voxel.
@@ -79,15 +79,15 @@ class Shape3D:
         min_xyz[2] = np.min(vertices_xyz[2,:])
         max_xyz[2] = np.max(vertices_xyz[2,:])
 
-    def surface_position_global(self,s,t) -> R3Vector:
+    def surface_position_global(self, s:Real, t:Real) -> R3Vector:
         '''Every 3D shape surface is traversed by orthogonal coordinates in unit square [0,1] x [0,1]'''
         return self.point_local_to_global(self.surface_position_local(s,t))
     
-    def surface_position_local(self,s,t) -> R3Vector:
+    def surface_position_local(self, s:Real, t:Real) -> R3Vector:
         '''Every 3D shape surface is traversed by orthogonal coordinates in unit square [0,1] x [0,1]'''
         raise NeverImplement('Abstract method surface position local()')
     
-    def surface_differential_area(self,s,t) -> Real:
+    def surface_differential_area(self, s:Real,t:Real) -> Real:
         '''Differential area in orthogonal coordinates in unit square [0,1] x [0,1]'''
         raise NeverImplement('Abstract method surface_differential_area()')
   
