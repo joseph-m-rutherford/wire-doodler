@@ -37,6 +37,11 @@ class Cylinder(Shape3D):
         v_axis = v_segment/math.sqrt(np.dot(v_segment,v_segment))
         u_axis = np.cross(v_axis,w_axis)
         super().__init__((start+stop)/2,(u_axis,v_axis,w_axis))
+    
+    @Shape3D.periodicity.getter
+    def periodicity(self) -> tuple[bool]:
+        '''Cylinder is periodic in s, not periodic in t; returns (True,False)'''
+        return (True,False)
 
     def bounding_box_local(self, min_uvw:R3Vector, max_uvw:R3Vector) -> None:
         '''Return bounding box in local coordinate system'''

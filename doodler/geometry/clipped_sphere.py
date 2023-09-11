@@ -129,6 +129,11 @@ class ClippedSphere(Shape3D):
                 v_axis = np.cross(w_axis,u_axis)
             super().__init__(self._center,(u_axis,v_axis,w_axis))
 
+    @Shape3D.periodicity.getter
+    def periodicity(self) -> tuple[bool]:
+        '''Cylinder is periodic in s, not periodic in t; returns (True,False)'''
+        return (True,False)
+
     @property
     def radius(self):
         '''Unclipped sphere radius'''

@@ -20,6 +20,17 @@ def test_r3vector_copy() -> None:
     assert r3vector_equality(a,a_reference,geometry.TOLERANCE)
     assert not r3vector_equality(a,b,geometry.TOLERANCE)
 
+def test_shape_construction() -> None:
+    htwo_rhalf_z = Cylinder((0.,0.,-1.),(0.,0.,1.),0.5)
+    assert htwo_rhalf_z.periodicity == (True,False)
+
+    center = (0.,0.,0.)
+    radius = 1.0
+    clip_bottom = ClippedSphere.ClipPlane((0.,0.,-1.),radius)
+    clip_top = ClippedSphere.ClipPlane((0.,0.,1.),radius)   
+    unit_sphere = ClippedSphere(center,radius,[clip_bottom,clip_top])
+    assert unit_sphere.periodicity == (True,False)
+
 def test_tangent_coordinates() -> None:
     from doodler.geometry import valid_tangent_coordinates, InvalidTangentCoordinates
     import pytest
@@ -38,7 +49,7 @@ def test_tangent_coordinates() -> None:
     with pytest.raises(InvalidTangentCoordinates):
         htwo_rhalf_z.surface_differential_area(-1,0)
     with pytest.raises(InvalidTangentCoordinates):
-        htwo_rhalf_z.surface_position_local(0,-1)        
+        htwo_rhalf_z.surface_position_local(0,-1)
        
 
 def test_cylinder_bounding_box() -> None:

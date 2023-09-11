@@ -28,7 +28,7 @@ class InvalidClippingPlane(Unrecoverable):
     pass
 
 class Shape3D:
-    '''Common base class for all 3D geometry'''
+    '''Common base class for all 3D geometry support sampling for quadrature'''
 
     def __init__(self,origin:R3Vector, axes:R3Axes):
         '''Primarily intended as a base class for position, orientation'''
@@ -39,6 +39,15 @@ class Shape3D:
             self.axes = axes3d_copy(axes)
         except Exception as e:
             raise Unrecoverable(''.join(['Failure defining 3D shape:\n',str(e)]))
+    
+    @property
+    def periodicity(self) -> tuple[bool]:
+        '''Return a pair of Boolean values true if the corresponding local dimension is periodic (s, t)'''
+        raise NeverImplement('Abstract property periodicity')
+    
+    @periodicity.setter
+    def periodicity(self,value) -> None:
+        raise NeverImplement('Periodicity is immutable')
         
     def point_local_to_global(self,point:R3Vector) -> R3Vector:
         '''Given u,v,w positions compute global position in x,y,z'''
