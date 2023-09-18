@@ -1,6 +1,7 @@
 #! julia
 import Arrow
 import DataFrames
+import Parquet
 import QuadGK
 
 function gauss_kronrod(n::Integer)
@@ -26,13 +27,13 @@ function gauss_kronrod(n::Integer)
     return gauss_result, kronrod_result
 end
 # Compute quadrature rules and export to disk
-@Threads.threads for order = 5:500
+@Threads.threads for order = 5:251
     k_order = 2*order+1
     gauss_table, kronrod_table = gauss_kronrod(order)
-    open("gauss_$order.arrow",write=true) do out
-        Arrow.write(out,gauss_table)
+    open("gauss_$order.parquet",write=true) do out
+        Parquet.write_parquet(out,gauss_table)
     end
-    open("kronrod_$k_order.arrow",write=true) do out
-        Arrow.write(out,kronrod_table)
+    open("kronrod_$k_order.parquet",write=true) do out
+        Parquet.write_parquet(out,kronrod_table)
     end
 end
