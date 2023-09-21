@@ -27,7 +27,7 @@ function gauss_kronrod(n::Integer)
     return gauss_result, kronrod_result
 end
 # Compute quadrature rules and export to disk
-@Threads.threads for order = 5:251
+@Threads.threads for order = 5:51
     k_order = 2*order+1
     gauss_table, kronrod_table = gauss_kronrod(order)
     open("gauss_$order.parquet",write=true) do out
