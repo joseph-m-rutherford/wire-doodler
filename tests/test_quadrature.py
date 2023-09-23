@@ -30,13 +30,28 @@ def test_invalid_quadrature_constructor():
     with pytest.raises(MissingQuadratureDefinition):
         r = rules.kronrod_rule(1)        
 
-def exp_abs_n_x(n,x):
-    '''exp(abs(100*x)); definite integral from -1 to 1 is 2*(exp(n)-exp(0))/n'''
-    return np.exp(np.abs(n*x))
+def exp_n_x(n,x):
+    '''exp(n*x); definite integral from -1 to 1 is (exp(n)-exp(-n))/n'''
+    return np.exp(n*x)
+
+from scipy import integrate
+
+FINE_TOLERANCE = 1e-12
+COARSE_TOLERANCE = 1e-8
 
 def test_quadrature_rules():
-    f1 = lambda x : exp_abs_n_x(1,x)
+    f1 = lambda x : exp_n_x(10,x)
     rules = quadrature.RuleCache()
     rule_g20 = rules.gauss_rule(20)
-    assert real_equality(np.dot(rule_g20.weights,f1(rule_g20.positions)), 2.*(math.exp(1.)-1.), 1e-3)
+    integration_g = np.dot(rule_g20.weights,f1(rule_g20.positions))
+    reference = (math.exp(10.)-math.exp(-10.))/10.
+    reference_quad, reference_quad_error = integrate.quad(f1,-1.,1.)
+    # Confirm that quadrature has converged to default tolerances of 1e-8
+    assert real_equality(reference_quad_error,0.,COARSE_TOLERANCE)
+    assert real_equality(reference_quad,reference,COARSE_TOLERANCE)
+    assert real_equality(integration_g, reference, COARSE_TOLERANCE)
+    rule_k41 = rules.kronrod_rule(41)
+    integration_k = np.dot(rule_k41.weights,f1(rule_k41.positions))
+    assert real_equality(integration_k, reference, FINE_TOLERANCE)
+    assert real_equality(abs(integration_g-integration_k),0.,COARSE_TOLERANCE)
     

@@ -98,5 +98,5 @@ class RuleCache:
         '''If the Kronrod rule is in memory, return it; else find on disk and return it'''
         if order not in self._kronrod_cache:
             self._cache_rule(RuleCache._kronrod_label,order)
-        return self._gauss_cache[order]
+        return self._kronrod_cache[order]
 
