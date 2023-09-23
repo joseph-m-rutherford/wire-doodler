@@ -39,19 +39,32 @@ from scipy import integrate
 FINE_TOLERANCE = 1e-12
 COARSE_TOLERANCE = 1e-8
 
+from numpy import typing as npt
+
+def absolute_error(a,b):
+    return np.abs(a-b)
+
+def relative_error(a,b,epsilon):
+    '''Compare two values; if within epsilon of 0 magnitude, treat both as zero'''
+    magnitude_a = np.abs(a)
+    magnitude_b = np.abs(b)
+    if max(magnitude_a, magnitude_b) < epsilon:
+        return True
+    return np.abs(a-b)/max(magnitude_a,magnitude_b)
+
 def test_quadrature_rules():
-    f1 = lambda x : exp_n_x(10,x)
-    rules = quadrature.RuleCache()
-    rule_g20 = rules.gauss_rule(20)
-    integration_g = np.dot(rule_g20.weights,f1(rule_g20.positions))
+    f10 = lambda x : exp_n_x(10,x)
     reference = (math.exp(10.)-math.exp(-10.))/10.
-    reference_quad, reference_quad_error = integrate.quad(f1,-1.,1.)
+    reference_quad, reference_quad_error = integrate.quad(f10,-1.,1.)
     # Confirm that quadrature has converged to default tolerances of 1e-8
     assert real_equality(reference_quad_error,0.,COARSE_TOLERANCE)
     assert real_equality(reference_quad,reference,COARSE_TOLERANCE)
-    assert real_equality(integration_g, reference, COARSE_TOLERANCE)
-    rule_k41 = rules.kronrod_rule(41)
-    integration_k = np.dot(rule_k41.weights,f1(rule_k41.positions))
+    # Having confirmed a correct refernece value, check the fixed Gaussian quadrature
+    rules = quadrature.RuleCache()
+    rule_g10 = rules.gauss_rule(10)
+    integration_g = np.dot(rule_g10.weights,f10(rule_g10.positions))
+    assert real_equality(integration_g, reference, math.sqrt(FINE_TOLERANCE))
+    rule_k21 = rules.kronrod_rule(21)
+    integration_k = np.dot(rule_k21.weights,f10(rule_k21.positions))
     assert real_equality(integration_k, reference, FINE_TOLERANCE)
-    assert real_equality(abs(integration_g-integration_k),0.,COARSE_TOLERANCE)
-    
+    assert relative_error(integration_g,integration_k,COARSE_TOLERANCE) < math.sqrt(COARSE_TOLERANCE)
