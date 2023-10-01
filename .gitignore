@@ -1,0 +1,4 @@
+#Ignore __pycache__
+**/__pycache__/*
+#Ignore quadrature rules in parquet format
+doodler/quadrature/*.parquet
