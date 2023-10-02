@@ -73,22 +73,24 @@ def exp_n_rho_sin_phi(n:float, rho:float,phi:float):
     return np.exp(n*rho*np.sin(phi))
 
 def test_2D_quadrature_rules():
+    # Construct common rule cache
+    rules = quadrature.RuleCache()
+
     # Volume under function over area is iint f(rho,phi)*rho*dphi*drho
     f1_rho_phi = lambda rho,phi : rho*exp_n_rho_sin_phi(1,rho,phi)
-    reference, reference_error = integrate.dblquad(f1_rho_phi,-math.pi,math.pi,0,1)
+    reference, reference_error = integrate.dblquad(f1_rho_phi,-math.pi,math.pi,0,1,epsabs=FINE_TOLERANCE,epsrel=FINE_TOLERANCE)
     # Confirm that quadrature has converged to within factor of 10 of default tolerance 1e-8
-    assert real_equality(reference_error,0.,10*COARSE_TOLERANCE)
+    assert reference_error < COARSE_TOLERANCE
     # Test conversion from actual range of interest to (-1,1)x(-1,1) space
     # s range from -1,1 converted to phi=-pi,pi: phi = s*pi, dphi = pi*ds
     # t range from -1,1 converted to rho=0,1 : rho = t*0.5+0.5, drho = 0.5*dt
     f1_s_t = lambda s,t : (0.5*math.pi)*(t*0.5+0.5)*exp_n_rho_sin_phi(1,t*0.5+0.5,math.pi*s)
-    reference_quad, reference_quad_error = integrate.dblquad(f1_s_t,-1.,1.,-1.,1.)
+    reference_quad, reference_quad_error = integrate.dblquad(f1_s_t,-1.,1.,-1.,1.,epsabs=FINE_TOLERANCE,epsrel=FINE_TOLERANCE)
     # Confirm that remapped quadrature also converged to within a factor of 10 of default 1e-8 tolerance
-    assert real_equality(reference_quad_error,0.,10*COARSE_TOLERANCE)
+    assert reference_quad_error < COARSE_TOLERANCE
     # Confirm that remapped adaptive quadrature agrees with original
     assert real_equality(reference_quad,reference,COARSE_TOLERANCE)
     # Having confirmed a correct reference value, check fixed rule behavior
-    rules = quadrature.RuleCache()
     rule_u10g10 = rules.uniform_x_gauss_rule(10,10)
     assert rule_u10g10.size == (10,10)
     values_u10g10 = f1_s_t(rule_u10g10.positions[0,:],rule_u10g10.positions[1,:])
@@ -100,7 +102,54 @@ def test_2D_quadrature_rules():
     integral_u20k21 = np.dot(values_u20k21.flatten(),rule_u20k21.weights.flatten())
     error_u10g10 = relative_error(integral_u10g10,reference,FINE_TOLERANCE)
     error_estimated_u10g10 = relative_error(integral_u10g10,integral_u20k21,FINE_TOLERANCE)
+    # Accuracy achieved only to COARSE_TOLERANCE
+    assert real_equality(error_estimated_u10g10,error_u10g10,COARSE_TOLERANCE)
+    assert real_equality(integral_u10g10,reference,COARSE_TOLERANCE)
+
+    # Move up exponent scaling by 10, recycle quadrature rules
+    # Volume under function over area is iint f(rho,phi)*rho*dphi*drho
+    f10_rho_phi = lambda rho,phi : rho*exp_n_rho_sin_phi(10,rho,phi)
+    reference, reference_error = integrate.dblquad(f10_rho_phi,-math.pi,math.pi,0,1,epsabs=FINE_TOLERANCE,epsrel=FINE_TOLERANCE)
+    # Confirm that quadrature has converged to within factor of 100 of default tolerance 1e-8
+    assert reference_error < 100*COARSE_TOLERANCE
+    # Test conversion from actual range of interest to (-1,1)x(-1,1) space
+    # s range from -1,1 converted to phi=-pi,pi: phi = s*pi, dphi = pi*ds
+    # t range from -1,1 converted to rho=0,1 : rho = t*0.5+0.5, drho = 0.5*dt
+    f10_s_t = lambda s,t : (0.5*math.pi)*(t*0.5+0.5)*exp_n_rho_sin_phi(10,t*0.5+0.5,math.pi*s)
+    reference_quad, reference_quad_error = integrate.dblquad(f10_s_t,-1.,1.,-1.,1.,epsabs=FINE_TOLERANCE,epsrel=FINE_TOLERANCE)
+    # Confirm that remapped quadrature also converged to within a factor of 100 of default 1.5e-8 tolerance
+    assert reference_quad_error < COARSE_TOLERANCE
+    # Confirm that remapped adaptive quadrature agrees with original
+    assert real_equality(reference_quad,reference,COARSE_TOLERANCE)
+    # Having confirmed a correct reference value, check fixed rule behavior
+    values_u10g10 = f10_s_t(rule_u10g10.positions[0,:],rule_u10g10.positions[1,:])
+    integral_u10g10 = np.dot(values_u10g10.flatten(),rule_u10g10.weights.flatten())
+    # This u10g10 rule should be inaccurate; test error estimation using coresponding u20k21 rule
+    values_u20k21 = f10_s_t(rule_u20k21.positions[0,:],rule_u20k21.positions[1,:])
+    integral_u20k21 = np.dot(values_u20k21.flatten(),rule_u20k21.weights.flatten())
+    error_u10g10 = relative_error(integral_u10g10,reference,FINE_TOLERANCE)
+    error_estimated_u10g10 = relative_error(integral_u10g10,integral_u20k21,FINE_TOLERANCE)
+    # Error estimate is larger; use very coarse tolerance
+    assert real_equality(error_estimated_u10g10,error_u10g10,math.sqrt(COARSE_TOLERANCE))
+    # Low order solution is not adequate
+    assert not real_equality(integral_u10g10,reference,COARSE_TOLERANCE)
+    # High order solution in very coarse adequate
+    assert real_equality(integral_u20k21,reference,math.sqrt(COARSE_TOLERANCE))
+    # Move up in rule orders
+    rule_u30g30 = rules.uniform_x_gauss_rule(30,30)
+    assert rule_u30g30.size == (30,30)
+    values_u30g30 = f10_s_t(rule_u30g30.positions[0,:],rule_u30g30.positions[1,:])
+    integral_u30g30 = np.dot(values_u30g30.flatten(),rule_u30g30.weights.flatten())
+    # This u30g30 rule should be inaccurate; test error estimation using coresponding u60k61 rule
+    rule_u60k61 = rules.uniform_x_kronrod_rule(60,61)
+    assert rule_u60k61.size == (60,61)
+    values_u60k61 = f10_s_t(rule_u60k61.positions[0,:],rule_u60k61.positions[1,:])
+    integral_u60k61 = np.dot(values_u60k61.flatten(),rule_u60k61.weights.flatten())
+    error_u30g30 = relative_error(integral_u30g30,reference,FINE_TOLERANCE)
+    error_estimated_u30g30 = relative_error(integral_u30g30,integral_u60k61,FINE_TOLERANCE)
     # Error estimate is tiny, use fine tolerance
-    assert real_equality(error_estimated_u10g10,error_u10g10,FINE_TOLERANCE)
-    # Reference value is accurate only to within coarse tolerance
-    assert real_equality(integral_u10g10,reference,10*COARSE_TOLERANCE)
+    assert real_equality(error_estimated_u30g30,error_u30g30,COARSE_TOLERANCE)
+    # Reference value is accurate only to within fine tolerance
+    assert real_equality(integral_u30g30,reference,FINE_TOLERANCE)
+    # Higher order solution is within tolerance
+    assert real_equality(integral_u60k61,reference,FINE_TOLERANCE)
