@@ -89,18 +89,18 @@ def test_2D_quadrature_rules():
     assert real_equality(reference_quad,reference,COARSE_TOLERANCE)
     # Having confirmed a correct reference value, check fixed rule behavior
     rules = quadrature.RuleCache()
-    rule_u20g20 = rules.uniform_x_gauss_rule(20,20)
-    assert rule_u20g20.size == (20,20)
-    values_u20g20 = f1_s_t(rule_u20g20.positions[0,:],rule_u20g20.positions[1,:])
-    integral_u20g20 = np.dot(values_u20g20.flatten(),rule_u20g20.weights.flatten())
+    rule_u10g10 = rules.uniform_x_gauss_rule(10,10)
+    assert rule_u10g10.size == (10,10)
+    values_u10g10 = f1_s_t(rule_u10g10.positions[0,:],rule_u10g10.positions[1,:])
+    integral_u10g10 = np.dot(values_u10g10.flatten(),rule_u10g10.weights.flatten())
     # This u10g10 rule should be inaccurate; test error estimation using coresponding u20k21 rule
-    rule_u40k41 = rules.uniform_x_kronrod_rule(40,41)
-    assert rule_u40k41.size == (40,41)
-    values_u40k41 = f1_s_t(rule_u40k41.positions[0,:],rule_u40k41.positions[1,:])
-    integral_u40k41 = np.dot(values_u40k41.flatten(),rule_u40k41.weights.flatten())
-    error_u20g20 = relative_error(integral_u20g20,reference,FINE_TOLERANCE)
-    error_estimated_u20g20 = relative_error(integral_u20g20,integral_u40k41,FINE_TOLERANCE)
-    # error estimates should both be < 0.1
-    assert absolute_error(error_estimated_u20g20,error_u20g20) < 0.1
-    # error estimates should both be > 0.01
-    assert absolute_error(error_estimated_u20g20,error_u20g20) > 0.01
+    rule_u20k21 = rules.uniform_x_kronrod_rule(20,21)
+    assert rule_u20k21.size == (20,21)
+    values_u20k21 = f1_s_t(rule_u20k21.positions[0,:],rule_u20k21.positions[1,:])
+    integral_u20k21 = np.dot(values_u20k21.flatten(),rule_u20k21.weights.flatten())
+    error_u10g10 = relative_error(integral_u10g10,reference,FINE_TOLERANCE)
+    error_estimated_u10g10 = relative_error(integral_u10g10,integral_u20k21,FINE_TOLERANCE)
+    # Error estimate is tiny, use fine tolerance
+    assert real_equality(error_estimated_u10g10,error_u10g10,FINE_TOLERANCE)
+    # Reference value is accurate only to within coarse tolerance
+    assert real_equality(integral_u10g10,reference,10*COARSE_TOLERANCE)

@@ -68,9 +68,9 @@ class Rule2D:
         if isinstance(rule_1,Rule1D) and isinstance(rule_2,Rule1D):
             self._rule_1 = rule_1
             self._rule_2 = rule_2
-            self._weights = np.outer(rule_1.weights,rule_2.weights)
+            self._weights = np.outer(rule_2.weights,rule_1.weights)
             # match positions to output of np.outer()
-            positions_2, positions_1 = np.meshgrid(self._rule_1.positions,self._rule_2.positions)
+            positions_1, positions_2 = np.meshgrid(self._rule_1.positions,self._rule_2.positions)
             self._positions = np.array([positions_1.flatten(),positions_2.flatten()],dtype=Real)
         else:
             raise InvalidQuadratureDefinition('Rule2D arguments must be Rule1D')
