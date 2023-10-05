@@ -3,6 +3,7 @@
 
 from doodler import geometry, real_equality, r3vector_copy, r3vector_equality, Cylinder, ClippedSphere
 
+import math
 import numpy as np
 import pytest
 
@@ -21,15 +22,35 @@ def test_r3vector_copy() -> None:
     assert not r3vector_equality(a,b,geometry.TOLERANCE)
 
 def test_shape_construction() -> None:
-    htwo_rhalf_z = Cylinder((0.,0.,-1.),(0.,0.,1.),0.5)
+    '''Verify that normal inputs have basic properties expected after construction'''
+    htwo_rhalf_z = Cylinder((0.,0.,-0.1),(0.,0.,0.9),0.5)
     assert htwo_rhalf_z.periodicity == (True,False)
+    spans = htwo_rhalf_z.min_spans
+    # s curve covers 2*pi*r in distance
+    assert real_equality(spans[0],math.pi,geometry.TOLERANCE)
+    # t curve covers w = -0.1 to 0.9 in distance
+    assert real_equality(spans[1],1,geometry.TOLERANCE)
 
     center = (0.,0.,0.)
     radius = 1.0
-    clip_bottom = ClippedSphere.ClipPlane((0.,0.,-1.),radius)
-    clip_top = ClippedSphere.ClipPlane((0.,0.,1.),radius)   
+    clip_bottom = ClippedSphere.ClipPlane((0.,0.,-1.),0.75*radius)
+    clip_top = ClippedSphere.ClipPlane((0.,0.,1.),0.75*radius)   
     unit_sphere = ClippedSphere(center,radius,[clip_bottom,clip_top])
     assert unit_sphere.periodicity == (True,False)
+    spans = unit_sphere.min_spans
+    # clip at 0.75*r means sqrt(1-9/16) radius at top and bottom
+    # s curve covers 2*pi*r in distance
+    assert real_equality(spans[0],2*math.pi*math.sqrt(1.-9./16),geometry.TOLERANCE)
+    # zenithal angle spanned by curve is 2*(pi/2-atan2(sqrt(1-9/16),0.75))
+    # t curve covers r*angle in distance
+    assert real_equality(spans[1],radius*2*math.atan2(0.75,math.sqrt(1.-9./16)),geometry.TOLERANCE)
+    spans = unit_sphere.max_spans
+    # clip at +/-0.75*r means largest radius is equator
+    # s curve covers 2*pi*r in distance
+    assert real_equality(spans[0],2*math.pi*radius,geometry.TOLERANCE)
+    # zenithal angle spanned by curve is 2*(pi/2-atan2(sqrt(1-9/16),0.75))
+    # t curve covers r*angle in distance
+    assert real_equality(spans[1],radius*2*math.atan2(0.75,math.sqrt(1.-9./16)),geometry.TOLERANCE)
 
 def test_tangent_coordinates() -> None:
     from doodler.geometry import valid_tangent_coordinates, InvalidTangentCoordinates
@@ -110,42 +131,42 @@ def test_clipped_sphere_bounding_box():
     # First sphere: Unit sphere, aligned to global xyz, no clipping (clips at poles)
     center = (0.,0.,0.)
     radius = 1.0
-    clip_bottom = ClippedSphere.ClipPlane((0.,0.,-1.),radius)
-    clip_top = ClippedSphere.ClipPlane((0.,0.,1.),radius)   
+    clip_bottom = ClippedSphere.ClipPlane((0.,0.,-1.),0.99*radius)
+    clip_top = ClippedSphere.ClipPlane((0.,0.,1.),0.99*radius)   
     unit_sphere = ClippedSphere(center,radius,[clip_bottom,clip_top])
     min_uvw = np.zeros((3,))
     max_uvw = np.zeros((3,))
     unit_sphere.bounding_box_local(min_uvw,max_uvw)
-    assert r3vector_equality((-1,-1,-1),min_uvw,geometry.TOLERANCE)
-    assert r3vector_equality((1,1,1),max_uvw,geometry.TOLERANCE)
+    assert r3vector_equality((-1,-1,-0.99*radius),min_uvw,geometry.TOLERANCE)
+    assert r3vector_equality((1,1,0.99*radius),max_uvw,geometry.TOLERANCE)
 
 def test_clipped_sphere_invalid_planes():
-    from doodler.geometry import InvalidClippingPlane
+    from doodler.geometry import InvalidClipPlane
     center = (0.,0.,0.)
     radius = 1.0
-    with pytest.raises(InvalidClippingPlane):
+    with pytest.raises(InvalidClipPlane):
         # No sphere remaining requires opposite normals
         clip_bottom = ClippedSphere.ClipPlane((0.,0.,-1.),0.)
         clip_top = ClippedSphere.ClipPlane((0.,0.,-1.),0.)   
         unit_sphere = ClippedSphere(center,radius,[clip_bottom,clip_top])
-    with pytest.raises(InvalidClippingPlane):
-        # clips at too large of radius
-        clip_bottom = ClippedSphere.ClipPlane((0.,0.,-1.),1.1*radius)
-        clip_top = ClippedSphere.ClipPlane((0.,0.,1.),radius)   
-        unit_sphere = ClippedSphere(center,radius,[clip_bottom,clip_top])
-    with pytest.raises(InvalidClippingPlane):
+    with pytest.raises(InvalidClipPlane):
         # clips at too large of radius
         clip_bottom = ClippedSphere.ClipPlane((0.,0.,-1.),radius)
-        clip_top = ClippedSphere.ClipPlane((0.,0.,1.),1.01*radius)   
-        unit_sphere = ClippedSphere(center,radius,[clip_bottom,clip_top])
-    with pytest.raises(InvalidClippingPlane):
-        # duplicate plane
-        clip_bottom = ClippedSphere.ClipPlane((0.,0.,1.),radius)
         clip_top = ClippedSphere.ClipPlane((0.,0.,1.),radius)   
         unit_sphere = ClippedSphere(center,radius,[clip_bottom,clip_top])
-    with pytest.raises(InvalidClippingPlane):
+    with pytest.raises(InvalidClipPlane):
+        # clips at too large of radius
+        clip_bottom = ClippedSphere.ClipPlane((0.,0.,-1.),radius)
+        clip_top = ClippedSphere.ClipPlane((0.,0.,1.),radius-0.9*geometry.TOLERANCE)   
+        unit_sphere = ClippedSphere(center,radius,[clip_bottom,clip_top])
+    with pytest.raises(InvalidClipPlane):
+        # duplicate plane
+        clip_bottom = ClippedSphere.ClipPlane((0.,0.,1.),0.9*radius)
+        clip_top = ClippedSphere.ClipPlane((0.,0.,1.),0.9*radius)   
+        unit_sphere = ClippedSphere(center,radius,[clip_bottom,clip_top])
+    with pytest.raises(InvalidClipPlane):
         # same hemisphere planes
-        clip_bottom = ClippedSphere.ClipPlane((0.,-0.6,-0.8),radius)
-        clip_top = ClippedSphere.ClipPlane((0.,0.6,-0.8),radius)   
+        clip_bottom = ClippedSphere.ClipPlane((0.,-0.6,-0.8),0.9*radius)
+        clip_top = ClippedSphere.ClipPlane((0.,0.6,-0.8),0.9*radius)   
         unit_sphere = ClippedSphere(center,radius,[clip_bottom,clip_top])
     

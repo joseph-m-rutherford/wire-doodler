@@ -43,6 +43,16 @@ class Cylinder(Shape3D):
         '''Cylinder is periodic in s, not periodic in t; returns (True,False)'''
         return (True,False)
 
+    @Shape3D.max_spans.getter
+    def max_spans(self) -> tuple[Real]:
+        '''Cylinder is circular in s, linear in t; returns (2*pi*radius,height)'''
+        return (2*math.pi*self._radius,self._height)
+
+    @Shape3D.min_spans.getter
+    def min_spans(self) -> tuple[Real]:
+        '''Cylinder is circular in s, linear in t; returns (2*pi*radius,height)'''
+        return (2*math.pi*self._radius,self._height)
+
     def bounding_box_local(self, min_uvw:R3Vector, max_uvw:R3Vector) -> None:
         '''Return bounding box in local coordinate system'''
         min_uvw[:] = (-self._radius,-self._radius,-self._height/2)

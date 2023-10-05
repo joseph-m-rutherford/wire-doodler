@@ -23,10 +23,6 @@ class InvalidTangentCoordinates(Unrecoverable):
     '''Raised when a coordinate is outside the unit square [0,1]x[0,1]'''
     pass
 
-class InvalidClippingPlane(Unrecoverable):
-    '''Raised when a clipping plane is outside the geometry or has bad orientation'''
-    pass
-
 class Shape3D:
     '''Common base class for all 3D geometry support sampling for quadrature'''
 
@@ -39,7 +35,15 @@ class Shape3D:
             self._axes = axes3d_copy(axes)
         except Exception as e:
             raise Unrecoverable(''.join(['Failure defining 3D shape:\n',str(e)]))
+    @property
+    def axes(self) -> R3Axes:
+        '''Returns the u,v,w local coordinate system in a 3x3 array.'''
+        return self._axes
     
+    @axes.setter
+    def axes(self,value) -> None:
+        raise NeverImplement('Axes are immutable')
+
     @property
     def periodicity(self) -> tuple[bool]:
         '''Return a pair of Boolean values true if the corresponding local dimension is periodic (s, t)'''
@@ -48,6 +52,16 @@ class Shape3D:
     @periodicity.setter
     def periodicity(self,value) -> None:
         raise NeverImplement('Periodicity is immutable')
+    
+    @property
+    def max_spans(self) -> tuple[Real]:
+        '''Return a bool of real values for maximum span in R3 space for a single arc in s or t'''
+        raise NeverImplement('Abstract property max_spans')
+    
+    @property
+    def min_spans(self) -> tuple[Real]:
+        '''Return a bool of real values for minimum span in R3 space for a single arc in s or t'''
+        raise NeverImplement('Abstract property min_spans')
         
     def point_local_to_global(self,point:R3Vector) -> R3Vector:
         '''Given u,v,w positions compute global position in x,y,z'''
@@ -99,4 +113,3 @@ class Shape3D:
     def surface_differential_area(self, s:Real,t:Real) -> Real:
         '''Differential area in orthogonal coordinates in unit square [0,1] x [0,1]'''
         raise NeverImplement('Abstract method surface_differential_area()')
-  
