@@ -59,20 +59,20 @@ class Cylinder(Shape3D):
         max_uvw[:] = (self._radius,self._radius,self._height/2)
     
     def surface_position_local(self, s:Real, t:Real) -> R3Vector:
-        '''Cylinder is traversed by orthogonal coordinates in unit square [0,1] x [0,1]
+        '''Cylinder is traversed by orthogonal coordinates in square [-1,1]x[-1,1]
         
-        s argument is scaled linearly in polar angle range [0,2*pi]
-        t argument is scaled linearly in height position [0,height]'''
+        s argument is scaled linearly in polar angle range [-pi,pi]
+        t argument is scaled linearly in height position [-height/2,height/2]'''
         if valid_tangent_coordinates(s,t):
-            return np.array([np.cos(2*np.pi*s)*self._radius,np.sin(2*np.pi*s)*self._radius,self._height*(t-0.5)],dtype=Real)
+            return np.array([np.cos(np.pi*s)*self._radius,np.sin(np.pi*s)*self._radius,self._height*0.5*t],dtype=Real)
         else:
             raise InvalidTangentCoordinates('surface_position_local() requested at invalid coordinate ({},{})'.format(s,t))
 
     def surface_differential_area(self, s:Real, t:Real) -> Real:
-        '''Differential area in orthogonal coordinates in unit square [0,1] x [0,1]
+        '''Differential area in orthogonal coordinates in square [-1,1]x[-1,1]
         
         s,t arguments are ignored because a cylinder is constant in differential area'''
         if valid_tangent_coordinates(s,t):
-            return Real(2*np.pi*self._radius*self._height)
+            return Real(2.*np.pi*self._radius*self._height/4.)
         else:
             raise InvalidTangentCoordinates('surface_differential_area() requested at invalid coordinate ({},{})'.format(s,t))

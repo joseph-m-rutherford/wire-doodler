@@ -81,7 +81,7 @@ def test_2D_quadrature_rules():
     reference, reference_error = integrate.dblquad(f1_rho_phi,-math.pi,math.pi,0,1,epsabs=FINE_TOLERANCE,epsrel=FINE_TOLERANCE)
     # Confirm that quadrature has converged to within factor of 10 of default tolerance 1e-8
     assert reference_error < COARSE_TOLERANCE
-    # Test conversion from actual range of interest to (-1,1)x(-1,1) space
+    # Test conversion from actual range of interest to [-1,1]x[-1,1] space
     # s range from -1,1 converted to phi=-pi,pi: phi = s*pi, dphi = pi*ds
     # t range from -1,1 converted to rho=0,1 : rho = t*0.5+0.5, drho = 0.5*dt
     f1_s_t = lambda s,t : (0.5*math.pi)*(t*0.5+0.5)*exp_n_rho_sin_phi(1,t*0.5+0.5,math.pi*s)
@@ -112,7 +112,7 @@ def test_2D_quadrature_rules():
     reference, reference_error = integrate.dblquad(f10_rho_phi,-math.pi,math.pi,0,1,epsabs=FINE_TOLERANCE,epsrel=FINE_TOLERANCE)
     # Confirm that quadrature has converged to within factor of 100 of default tolerance 1e-8
     assert reference_error < 100*COARSE_TOLERANCE
-    # Test conversion from actual range of interest to (-1,1)x(-1,1) space
+    # Test conversion from actual range of interest to [-1,1]x[-1,1] space
     # s range from -1,1 converted to phi=-pi,pi: phi = s*pi, dphi = pi*ds
     # t range from -1,1 converted to rho=0,1 : rho = t*0.5+0.5, drho = 0.5*dt
     f10_s_t = lambda s,t : (0.5*math.pi)*(t*0.5+0.5)*exp_n_rho_sin_phi(10,t*0.5+0.5,math.pi*s)

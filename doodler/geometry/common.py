@@ -16,11 +16,11 @@ def flip_element(argument:R3Vector, index: Index) -> None:
 
 
 def valid_tangent_coordinates(s,t) -> bool:
-    '''Method to confirm tangent coordinates are in unit square [0,1]x[0,1]'''
-    return s >= 0. and s <= 1. and t >= 0. and t <= 1.
+    '''Method to confirm tangent coordinates are in square [-1,1]x[-1,1]'''
+    return s >= -1. and s <= 1. and t >= -1. and t <= 1.
 
 class InvalidTangentCoordinates(Unrecoverable):
-    '''Raised when a coordinate is outside the unit square [0,1]x[0,1]'''
+    '''Raised when a coordinate is outside the square [-1,1]x[-1,1]'''
     pass
 
 class Shape3D:
@@ -103,13 +103,13 @@ class Shape3D:
         max_xyz[2] = np.max(vertices_xyz[2,:])
 
     def surface_position_global(self, s:Real, t:Real) -> R3Vector:
-        '''Every 3D shape surface is traversed by orthogonal coordinates in unit square [0,1] x [0,1]'''
+        '''Every 3D shape surface is traversed by orthogonal coordinates in square [-1,1]x[-1,1]'''
         return self.point_local_to_global(self.surface_position_local(s,t))
     
     def surface_position_local(self, s:Real, t:Real) -> R3Vector:
-        '''Every 3D shape surface is traversed by orthogonal coordinates in unit square [0,1] x [0,1]'''
+        '''Every 3D shape surface is traversed by orthogonal coordinates in square [-1,1]x[-1,1]'''
         raise NeverImplement('Abstract method surface position local()')
     
     def surface_differential_area(self, s:Real,t:Real) -> Real:
-        '''Differential area in orthogonal coordinates in unit square [0,1] x [0,1]'''
+        '''Differential area in orthogonal coordinates in square [-1,1]x[-1,1]'''
         raise NeverImplement('Abstract method surface_differential_area()')
