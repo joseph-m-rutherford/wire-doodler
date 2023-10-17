@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Copyright (c) 2023, Joseph M. Rutherford
 
-from .common import Shape3D, TOLERANCE
+from .common import Shape3D, InvalidTangentCoordinates, TOLERANCE, valid_tangent_coordinates
 from doodler.errors import Unrecoverable, NeverImplement
 from doodler.r3 import Real, R3Vector, r3vector_copy, r3vector_equality
 import copy
@@ -252,23 +252,37 @@ class ClippedSphere(Shape3D):
         min_uvw[:] = (-self._radius,-self._radius,min_w)
         max_uvw[:] = (self._radius,self._radius,max_w)
 
+    def phi_theta(self, s:Real, t:Real) -> tuple[Real]:
+        '''Given tangential coordinates s,t return azimuthal angle phi, zenithal angle theta, theta span'''
+        if valid_tangent_coordinates(s,t):
+            # Extract theta = acos(w_component/radius) of point on circles at azimuthal coordinate s
+            clip_thetas = [Real(math.acos(clip.circle_position(s)[2]/self._radius)) for clip in self._clips]
+            theta_span = max(clip_thetas) - min(clip_thetas)
+            midpoint_theta = np.mean(clip_thetas)
+            # At this choice of s, -1<=t<=1 spans [southern_theta,northern_theta]
+            theta_t = midpoint_theta + t*theta_span*0.5
+            return math.pi*s,theta_t
+        else:
+            raise InvalidTangentCoordinates('Cannot compute local position on sphere at point ({},{})'.format(s,t))
+
     def surface_position_local(self, s:Real, t:Real) -> R3Vector:
         '''Clipped sphere is traversed by orthogonal coordinates in square [-1,1]x[-1,1]
         
         s argument is scaled linearly in polar angle range (-pi,pi) about w-axis
         t argument is scaled linearly on arc between clip plane circles (-height/2,height/2)'''
-        if self.valid_tangent_coordinates(s,t):
-            
-            return np.array([np.cos(np.pi*s)*self._radius,np.sin(np.pi*s)*self._radius,self._height*0.5*t],dtype=Real)
+        phi,theta = self.phi_theta(s,t)
+        return r3vector_copy((math.cos(phi)*self._radius,math.sin(phi)*self._radius,math.cos(theta)*self._radius))
 
+        
     def surface_differential_area(self, s:Real, t:Real) -> Real:
-        '''Differential area in orthogonal coordinates in square [-1,1]x[-1,1]'''
-        if self.valid_tangent_coordinates(s,t):
-            # Convert s into a local longitude
-            longitude = math.pi*s
-            # Compute w bounds between clip planes at this longitude
-            w_clip_1_s = 0
-            
-            return Real(2.*np.pi*self._radius*self._height/4.)
-        else:
-            raise InvalidTangentCoordinates('surface_differential_area() requested at invalid coordinate ({},{})'.format(s,t))
+        '''Differential area in orthogonal coordinates in square [-1,1]x[-1,1]
+
+        s argument is scaled linearly in polar angle range (-pi,pi) about w-axis
+        t argument is scaled linearly on arc between clip plane circles (-height/2,height/2)'''
+        phi,theta = self.phi_theta(s,t)
+        theta_span = abs(self.phi_theta(s,1.)[1]-self.phi_theta(s,-1.)[1])
+
+        # for integral over 0 < theta < pi and 0 < phi < 2*pi, sphere differential area is r*r*sin(theta) dtheta dphi
+        # s spans 2*pi with range of 2; multiply by pi
+        # t spans theta_span with a range of 2, so multiply by theta_span/2
+        return Real(math.pi*theta_span*0.5*self._radius*self._radius*math.sin(theta))

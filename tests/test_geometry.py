@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Copyright (c) 2023, Joseph M. Rutherford
 
-from doodler import geometry, quadrature, real_equality, r3vector_copy, r3vector_equality, Cylinder, ClippedSphere, Shape3DSampler
+from doodler import geometry, real_equality, r3vector_copy, r3vector_equality, Cylinder, ClippedSphere
 
 import math
 import numpy as np

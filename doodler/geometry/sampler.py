@@ -69,7 +69,7 @@ class Shape3DSampler:
     @separation.setter
     def separation(self, value:Real):
         if value < Shape3DSampler.MINIMUM_SAMPLE_SIZE:
-            raise Unrecoverable('Sampler cannot use a separation value < {}'.format(Sampler.MINIMUM_SAMPLE_SIZE))
+            raise Unrecoverable('Sampler cannot use a separation value < {}'.format(Shape3DSampler.MINIMUM_SAMPLE_SIZE))
         self._separation = Real(value)
         self._compute_samples()
 
