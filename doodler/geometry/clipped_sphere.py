@@ -147,7 +147,7 @@ class ClippedSphere(Shape3D):
             if r3vector_equality(self._clips[0].offset,self._clips[1].offset,TOLERANCE):
                 # same pole is not supported
                 raise InvalidClipPlane('An entire sphere may be define by cuts on opposite poles, not the same pole')
-            if r3vector_equality(self._clips[0].offset,-1*self._clips[1].offset,TOLERANCE):
+            if r3vector_equality(self._clips[0].direction,-1*self._clips[1].direction,TOLERANCE):
                 # opposite poles is supported
                 # Pick least component of w for computing u,v axes
                 v_segment = None

@@ -24,16 +24,11 @@ def test_shape_areas() -> None:
 
     center = (0.,0.,0.)
     radius = 1.0
-    clip_radius = 0.9*radius
-    clip_bottom = ClippedSphere.ClipPlane(radius,(0.,0.,-1.),clip_radius)
-    clip_top = ClippedSphere.ClipPlane(radius,(0.,0.,1.),clip_radius)   
+    clip_bottom = ClippedSphere.ClipPlane(radius,(0.,0.,-1.),0.85*radius)
+    clip_top = ClippedSphere.ClipPlane(radius,(0.,0.,1.),0.65*radius)   
     clipped_sphere_sampler = Shape3DSampler(rules, ClippedSphere(center,radius,[clip_bottom,clip_top]), 0.1)
-    # area = int_0^pi dtheta 2*pi r*r*sin_theta
-    darea_dtheta = lambda theta: 2*math.pi*radius*radius*math.sin(theta)
-    from scipy import integrate
-    clipped_sphere_area_reference,clipped_sphere_area_reference_error = \
-        integrate.quad(darea_dtheta,math.acos(clip_radius/radius),math.acos(-clip_radius/radius))
-    assert clipped_sphere_area_reference_error < 1e-4
+    # by Archimedes' hat-box theorem https://mathworld.wolfram.com/ArchimedesHat-BoxTheorem.html
+    clipped_sphere_area_reference = (2*math.pi*radius)*(clip_top.distance+clip_bottom.distance)
     clipped_sphere_quadrature_weights = clipped_sphere_sampler.weights
     clipped_sphere_differential_areas = np.zeros_like(clipped_sphere_quadrature_weights)
     for i in range(len(clipped_sphere_quadrature_weights)):
