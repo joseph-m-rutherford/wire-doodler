@@ -271,7 +271,7 @@ class ClippedSphere(Shape3D):
         s argument is scaled linearly in polar angle range (-pi,pi) about w-axis
         t argument is scaled linearly on arc between clip plane circles (-height/2,height/2)'''
         phi,theta = self.phi_theta(s,t)
-        return r3vector_copy((math.cos(phi)*self._radius,math.sin(phi)*self._radius,math.cos(theta)*self._radius))
+        return r3vector_copy((math.sin(theta)*math.cos(phi)*self._radius,math.sin(theta)*math.sin(phi)*self._radius,math.cos(theta)*self._radius))
 
         
     def surface_differential_area(self, s:Real, t:Real) -> Real:
