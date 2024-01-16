@@ -7,7 +7,10 @@ from doodler.geometry import ClippedSphere, Cylinder, Shape3DSampler
 import math
 import numpy as np
 import pytest
-import random
+from scipy.spatial.transform import Rotation
+
+RNG_SEED = 20240115
+generator = np.random.default_rng(RNG_SEED)
 
 def export_samples(sampler:geometry.Shape3DSampler, filename:str) -> None:
         quadrature_weights = sampler.weights.flatten()
@@ -18,14 +21,14 @@ def export_samples(sampler:geometry.Shape3DSampler, filename:str) -> None:
                                                               sampler.samples_t[i])
                 outlet.write('{},{},{},{}\n'.format(point[0],point[1],point[2],quadrature_weights[i]))
 
-def test_cylinder_areas() -> None:
+def test_z_aligned_cylinder_areas() -> None:
     '''Verify that simple cylinder inputs have correct surface area calculations'''
     rules = quadrature.RuleCache()
     TEST_COUNT = 10
     for i in range(TEST_COUNT):
-        bottom_height = -1*random.random()
-        top_height = random.random()
-        radius = 0.1+random.random()
+        bottom_height = -1*generator.random()
+        top_height = generator.random()
+        radius = 0.1+generator.random()
         cylinder_sampler = Shape3DSampler(rules, Cylinder((0.,0.,bottom_height),(0.,0.,top_height),radius), 0.1)
         cylinder_area_reference = 2*math.pi*radius*(top_height-bottom_height)
         cylinder_quadrature_weights = cylinder_sampler.weights.flatten()
@@ -36,17 +39,17 @@ def test_cylinder_areas() -> None:
                                                                  cylinder_sampler.samples_t[j])
         cylinder_area_test = np.dot(cylinder_quadrature_weights,cylinder_differential_areas)
         assert real_equality(cylinder_area_reference,cylinder_area_test,geometry.TOLERANCE)
-        export_samples(sampler=cylinder_sampler,filename='cylinder_{}.csv'.format(i))
+        #export_samples(sampler=cylinder_sampler,filename='cylinder_{}.csv'.format(i))
 
-def test_clipped_sphere_areas() -> None:
+def test_z_aligned_clipped_sphere_areas() -> None:
     '''Verify that simple inputs have correct surface area calculations'''
     rules = quadrature.RuleCache()
     TEST_COUNT = 10
     for i in range(TEST_COUNT):
         center = (0.,0.,0.)
-        radius = 0.1+random.random()
-        clip_bottom = ClippedSphere.ClipPlane(radius,(0.,0.,-1.),random.random()*radius)
-        clip_top = ClippedSphere.ClipPlane(radius,(0.,0.,1.),random.random()*radius)
+        radius = 0.1+generator.random()
+        clip_bottom = ClippedSphere.ClipPlane(radius,(0.,0.,-1.),generator.random()*radius)
+        clip_top = ClippedSphere.ClipPlane(radius,(0.,0.,1.),generator.random()*radius)
         clipped_sphere_sampler = Shape3DSampler(rules, ClippedSphere(center,radius,[clip_bottom,clip_top]), 0.05)
         # by Archimedes' hat-box theorem https://mathworld.wolfram.com/ArchimedesHat-BoxTheorem.html
         clipped_sphere_area_reference = (2*math.pi*radius)*(clip_top.distance+clip_bottom.distance)
@@ -58,4 +61,69 @@ def test_clipped_sphere_areas() -> None:
                                                                        clipped_sphere_sampler.samples_t[j])
         clipped_sphere_area_test = np.dot(clipped_sphere_quadrature_weights,clipped_sphere_differential_areas)
         assert real_equality(clipped_sphere_area_reference,clipped_sphere_area_test,0.0001)
+        #export_samples(sampler=clipped_sphere_sampler,filename='clipped_sphere_{}.csv'.format(i))
+
+def compute_transformation(generator):
+    azimuthal_angle = generator.uniform(-np.pi,np.pi) # Any angle to rotate about z-axis
+    zenithal_angle = generator.uniform(0.,np.pi*0.25) # Stick to simple clips around poles
+    return Rotation.from_rotvec([[zenithal_angle,0,0],[0,0,azimuthal_angle]])
+
+def test_rotated_cylinder_areas() -> None:
+    '''Verify that rotated cylinder inputs have correct surface area calculations.
+    
+    Use randomized tilt (from z) and spin (from x)'''
+    rules = quadrature.RuleCache()
+    TEST_COUNT = 10
+    for i in range(TEST_COUNT):
+        bottom_height = -1*generator.random()
+        top_height = generator.random()
+        radius = 0.1+generator.random()
+        tilt_angle = generator.uniform(0.,0.5*np.pi)
+        tilt = Rotation.from_rotvec([tilt_angle,0.,0.])
+        spin_angle = generator.uniform(-np.pi,np.pi)
+        spin = Rotation.from_rotvec([0.,0.,spin_angle])
+        bottom_point = spin.apply(tilt.apply((0.,0.,bottom_height)))
+        top_point = spin.apply(tilt.apply((0.,0.,top_height)))
+        cylinder_sampler = Shape3DSampler(rules, Cylinder(bottom_point,top_point,radius), 0.1)
+        cylinder_area_reference = 2*math.pi*radius*(top_height-bottom_height)
+        cylinder_quadrature_weights = cylinder_sampler.weights.flatten()
+        cylinder_differential_areas = np.zeros_like(cylinder_quadrature_weights)
+        for j in range(len(cylinder_quadrature_weights)):
+            cylinder_differential_areas[j] = \
+                cylinder_sampler.shape.surface_differential_area(cylinder_sampler.samples_s[j],
+                                                                 cylinder_sampler.samples_t[j])
+        cylinder_area_test = np.dot(cylinder_quadrature_weights,cylinder_differential_areas)
+        assert real_equality(cylinder_area_reference,cylinder_area_test,geometry.TOLERANCE)
+        #export_samples(sampler=cylinder_sampler,filename='cylinder_{}.csv'.format(i))
+
+def test_rotated_clipped_sphere_areas() -> None:
+    '''Verify that tilted sphere inputs have correct surface area calculations'''
+    rules = quadrature.RuleCache()
+    TEST_COUNT = 10
+    for i in range(TEST_COUNT):
+        center = (0.,0.,0.)
+        radius = 0.1+generator.random()
+        tilt_angle = generator.uniform(0.,0.25*np.pi)
+        tilt = Rotation.from_rotvec([tilt_angle,0.,0.])
+        spin_angle = generator.uniform(-np.pi,np.pi)
+        spin = Rotation.from_rotvec([0.,0.,spin_angle])
+        bottom_point = spin.apply(tilt.apply((0.,0.,-1.)))
+        top_point = spin.apply(tilt.apply((0.,0.,1.)))
+        clip_bottom = ClippedSphere.ClipPlane(radius,bottom_point,generator.uniform(0.5,1.)*radius)
+        clip_top = ClippedSphere.ClipPlane(radius,top_point,generator.uniform(0.5,1.)*radius)
+        clipped_sphere_sampler = Shape3DSampler(rules, ClippedSphere(center,radius,[clip_bottom,clip_top]), 0.025)
+        # Use Archimedes' hat-box theorem https://mathworld.wolfram.com/ArchimedesHat-BoxTheorem.html
+        # Consider different clipped spheres, one with the top clip only, the other with the bottom only.
+        # The area associated either hemisphere is unchanged, regardless clip's orientation in it.
+        # Add the two sphere's areas, and then subtract out the extra sphere surface area
+        clipped_sphere_area_reference = (2*math.pi*radius)*(clip_top.distance+clip_bottom.distance)
+        clipped_sphere_quadrature_weights = clipped_sphere_sampler.weights
+        clipped_sphere_differential_areas = np.zeros_like(clipped_sphere_quadrature_weights)
+        for j in range(len(clipped_sphere_quadrature_weights)):
+            clipped_sphere_differential_areas[j] = \
+                clipped_sphere_sampler.shape.surface_differential_area(clipped_sphere_sampler.samples_s[j],
+                                                                       clipped_sphere_sampler.samples_t[j])
+        clipped_sphere_area_test = np.dot(clipped_sphere_quadrature_weights,clipped_sphere_differential_areas)
         export_samples(sampler=clipped_sphere_sampler,filename='clipped_sphere_{}.csv'.format(i))
+        assert real_equality(clipped_sphere_area_reference,clipped_sphere_area_test,0.01)
+        

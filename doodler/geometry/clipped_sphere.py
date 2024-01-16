@@ -58,9 +58,13 @@ class ClippedSphere(Shape3D):
                 self._circle_u = r3vector_copy((1.,0.,0.))
             else:
                 # Arbitrary alignment
-                self._circle_u = np.cross(R3Vector((0.,1.,0.)),self._direction)
+                self._circle_u = np.cross(r3vector_copy((0.,1.,0.)),self._direction)
                 self._circle_u /= math.sqrt(np.dot(self._circle_u,self._circle_u))
             self._circle_v = np.cross(self._direction,self._circle_u)
+            # Local circle positions lie in a polar arc; compute maximum deviation on that circle in w-direction
+            circle_delta_w = self._circle_radius*math.sqrt(self._circle_u[2]*self._circle_u[2]+self._circle_v[2]*self._circle_v[2])
+            if abs(self._direction[2])-circle_delta_w < TOLERANCE:
+                raise InvalidClipPlane('Clip plane passes through local w=0 plane')
 
         @property
         def direction(self) -> Real:
@@ -181,8 +185,8 @@ class ClippedSphere(Shape3D):
     def max_spans(self) -> tuple[Real]:
         '''Clipped sphere is circular in s, a zenithal arc in t; returns (2*pi*radius,radius*longest_arc_angle)'''
         min_w, max_w = self._longest_w_spans()
-        horizontal_offset_min_w = max(0.,math.sqrt(self._radius*self._radius-min_w*min_w))
-        horizontal_offset_max_w = max(0.,math.sqrt(self._radius*self._radius-max_w*max_w))
+        horizontal_offset_min_w = math.sqrt(max(0.,self._radius*self._radius-min_w*min_w))
+        horizontal_offset_max_w = math.sqrt(max(0.,self._radius*self._radius-max_w*max_w))
         angle_span = math.atan2(max_w,horizontal_offset_max_w)-math.atan2(min_w,horizontal_offset_min_w)
         # Equator may represent largest s-span
         if abs(min_w) < TOLERANCE or abs(max_w) < TOLERANCE or (min_w < 0.) != (max_w < 0.):
