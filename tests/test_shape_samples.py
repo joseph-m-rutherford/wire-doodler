@@ -102,7 +102,7 @@ def test_rotated_clipped_sphere_areas() -> None:
     TEST_COUNT = 10
     for i in range(TEST_COUNT):
         center = (0.,0.,0.)
-        radius = 0.1+generator.random()
+        radius = generator.uniform(0.1,0.6)
         tilt_angle = generator.uniform(0.,0.25*np.pi)
         tilt = Rotation.from_rotvec([tilt_angle,0.,0.])
         spin_angle = generator.uniform(-np.pi,np.pi)

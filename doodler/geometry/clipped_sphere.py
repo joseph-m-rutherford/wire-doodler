@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright (c) 2023, Joseph M. Rutherford
+# Copyright (c) 2023-2024, Joseph M. Rutherford
 
 from .common import Shape3D, InvalidTangentCoordinates, TOLERANCE, valid_tangent_coordinates
 from doodler.errors import Unrecoverable, NeverImplement
@@ -29,13 +29,11 @@ class ClippedSphere(Shape3D):
                 raise InvalidClipPlane('Cannot clip at non unit direction |{}| != 1.'.format(direction))
             self._direction = r3vector_copy(direction)
 
-            if distance < Real(0):
-                raise Unrecoverable('Cannot clip sphere at radius < 0')
-            # Snap radius to 0 if within TOLERANCE
             if distance < TOLERANCE:
-                self._distance = Real(0)
-            else:
-                self._distance = Real(distance)
+                raise InvalidClipPlane('Cannot clip sphere at radius < {}'.format(TOLERANCE))
+            if distance > sphere_radius-TOLERANCE:
+                raise InvalidClipPlane('Cannot clip near or beyond sphere radius')
+            self._distance = Real(distance)
 
             # Circle eqn is x^2 + y^2 = r^2 or y = +/- sqrt(r^2 - x^2)
             # On a sphere great circle perpendicular to clip plane, clip circle radius is sqrt(sphere_radius^2-clip_radius^2)
@@ -50,16 +48,9 @@ class ClippedSphere(Shape3D):
             if abs(self._direction[2]) < TOLERANCE:
                 # normal has no w component, which is an error case
                 raise InvalidClipPlane('Clip plane must have non-trivial local w-direction')
-            elif abs(self._direction[1]) < TOLERANCE:
-                # normal has no v component
-                self._circle_u = r3vector_copy((self._direction[2], Real(0), self._direction[0]))
-            elif abs(self._direction[0]) < TOLERANCE:
-                # normal has no u component, so aligning with parent u is easy
-                self._circle_u = r3vector_copy((1.,0.,0.))
-            else:
-                # Arbitrary alignment
-                self._circle_u = np.cross(r3vector_copy((0.,1.,0.)),self._direction)
-                self._circle_u /= math.sqrt(np.dot(self._circle_u,self._circle_u))
+            # Arbitrary alignment: best match to parent u-direction
+            self._circle_u = np.cross(r3vector_copy((0.,1.,0.)),self._direction)
+            self._circle_u /= math.sqrt(np.dot(self._circle_u,self._circle_u))
             self._circle_v = np.cross(self._direction,self._circle_u)
             # Local circle positions lie in a polar arc; compute maximum deviation on that circle in w-direction
             circle_delta_w = self._circle_radius*math.sqrt(self._circle_u[2]*self._circle_u[2]+self._circle_v[2]*self._circle_v[2])
@@ -108,38 +99,33 @@ class ClippedSphere(Shape3D):
         '''
         Initialize a clipped sphere
 
-        :param R3Vector sphere_center: Position in Cartesian R3 at center of unclipped sphere
+        :param R3Vector sphere_center: Position in Cartesian R3 at center of unclipped sphere in parent coordinates
         :param Real sphere_radius: Radius of unclipped sphere
-        :param list[ClipPlane] clips: two clipping planes to apply to sphere
+        :param list[ClipPlane] clips: two clipping planes to apply to sphere in parent coordinates
         '''
-        self._center = r3vector_copy(center)
-        self._radius = Real(radius)
+        # Sanity check radius
+        if radius < 10*TOLERANCE:
+            raise Unrecoverable('Sphere radius must exceed {}'.format(10*TOLERANCE))
         # Sanity check contents of clips arument
         if len(clips) != 2:
             raise Unrecoverable('Sphere clip count must equal two')
-        self._clips = [] # Clipping planes
-        self._circle_radii = [] # Circles at each clip
+        if np.dot(clips[0].direction, clips[1].direction) > -TOLERANCE:
+            raise InvalidClipPlane('Clipping planes must reside in opposite hemispheres')
         for clip in clips:
-            if clip.distance > self._radius-TOLERANCE:
+            if clip.distance > radius-TOLERANCE:
                 raise InvalidClipPlane('Cannot clip sphere at radial distance {} >= radius {}'.format(clip.distance,self._radius))
             if clip.distance < -TOLERANCE:
                 raise InvalidClipPlane('Cannot clip with negative radius')
-            self._clips.append(copy.deepcopy(clip))
-            self._circle_radii.append(self._clips[-1].circle_radius)
-
-        if np.dot(self._clips[0].direction, self._clips[1].direction) > -TOLERANCE:
-            raise InvalidClipPlane('Clipping planes must reside in opposite hemispheres')
-
         # Define local coordinate system as degenerate
         u_axis = None
         v_axis = None
         w_axis = None
         # Identify w-axis direction
-        segment = self._clips[1].offset - self._clips[0].offset
+        segment = clips[1].offset - clips[0].offset
         height = math.sqrt(np.dot(segment,segment))
         if height < TOLERANCE:
             # Clips are both at origin is no clipping at all or degenerate
-            if abs(np.dot(self._clips[0].direction,self._clips[1].direction)+1.) > TOLERANCE:
+            if abs(np.dot(clips[0].direction,clips[1].direction)+1.) > TOLERANCE:
                 raise InvalidClipPlane('Clipping all of sphere requires opposite surface normals')
             # Align with global coordinates
             u_axis = r3vector_copy(1,0,0)
@@ -148,10 +134,10 @@ class ClippedSphere(Shape3D):
         else:
             w_axis = segment/height
             # Identify special case of collinear cuts
-            if r3vector_equality(self._clips[0].offset,self._clips[1].offset,TOLERANCE):
+            if r3vector_equality(clips[0].offset,clips[1].offset,TOLERANCE):
                 # same pole is not supported
                 raise InvalidClipPlane('An entire sphere may be define by cuts on opposite poles, not the same pole')
-            if r3vector_equality(self._clips[0].direction,-1*self._clips[1].direction,TOLERANCE):
+            if r3vector_equality(clips[0].direction,-1*clips[1].direction,TOLERANCE):
                 # opposite poles is supported
                 # Pick least component of w for computing u,v axes
                 v_segment = None
@@ -168,13 +154,24 @@ class ClippedSphere(Shape3D):
                 # w parallel to the segment between the cut offset points
                 # v at cross product of 2 cut offsets
                 # u in plane of 2 cut offsets such that their position relative to center is positive in u, zer in v
-                v_axis = np.cross(self._clips[0].offset,self._clips[1].offset)
+                v_axis = np.cross(clips[0].offset,clips[1].offset)
                 parallelogram_area = math.sqrt(np.dot(v_axis,v_axis))
                 if parallelogram_area < TOLERANCE:
                     raise InvalidClipPlane('Degenerate plane computed from sphere clip vectors')
                 v_axis /= parallelogram_area
                 u_axis = np.cross(v_axis,w_axis)
-            super().__init__(self._center,(u_axis,v_axis,w_axis))
+        # Store local coordinate system info
+        super().__init__(center,(u_axis,v_axis,w_axis))
+        self._center = r3vector_copy(center)
+        self._radius = Real(radius)
+        self._clips = [] # Clipping planes to be transcribed
+        self._circle_radii = [] # Circles at each clip to be computed
+
+        # Define clipping planes in the local uvw space
+        parent_to_uvw = np.array([u_axis,v_axis,w_axis])
+        for clip in clips:
+            self._clips.append(ClippedSphere.ClipPlane(radius,np.matmul(parent_to_uvw,clip.direction),clip.distance))
+            self._circle_radii.append(clip.circle_radius)
 
     @Shape3D.periodicity.getter
     def periodicity(self) -> tuple[bool]:
