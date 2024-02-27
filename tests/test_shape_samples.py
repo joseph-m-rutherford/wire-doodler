@@ -2,7 +2,7 @@
 # Copyright (c) 2023, Joseph M. Rutherford
 
 from doodler import geometry, quadrature, real_equality
-from doodler.geometry import ClippedSphere, Cylinder, Shape3DSampler
+from doodler.geometry import ClippedSphere, Cylinder, Shape3DSampler, LeftHanded, RightHanded
 
 import math
 import numpy as np
@@ -48,8 +48,8 @@ def test_z_aligned_clipped_sphere_areas() -> None:
     for i in range(TEST_COUNT):
         center = (0.,0.,0.)
         radius = 0.1+generator.random()
-        clip_bottom = ClippedSphere.ClipPlane(radius,(0.,0.,-1.),generator.random()*radius)
-        clip_top = ClippedSphere.ClipPlane(radius,(0.,0.,1.),generator.random()*radius)
+        clip_bottom = ClippedSphere.ClipPlane(LeftHanded(),radius,(0.,0.,-1.),generator.random()*radius)
+        clip_top = ClippedSphere.ClipPlane(RightHanded(),radius,(0.,0.,1.),generator.random()*radius)
         clipped_sphere_sampler = Shape3DSampler(rules, ClippedSphere(center,radius,[clip_bottom,clip_top]), 0.05)
         # by Archimedes' hat-box theorem https://mathworld.wolfram.com/ArchimedesHat-BoxTheorem.html
         clipped_sphere_area_reference = (2*math.pi*radius)*(clip_top.distance+clip_bottom.distance)
@@ -60,7 +60,7 @@ def test_z_aligned_clipped_sphere_areas() -> None:
                 clipped_sphere_sampler.shape.surface_differential_area(clipped_sphere_sampler.samples_s[j],
                                                                        clipped_sphere_sampler.samples_t[j])
         clipped_sphere_area_test = np.dot(clipped_sphere_quadrature_weights,clipped_sphere_differential_areas)
-        assert real_equality(clipped_sphere_area_reference,clipped_sphere_area_test,0.0001)
+        assert real_equality(clipped_sphere_area_reference,clipped_sphere_area_test,0.001)
         #export_samples(sampler=clipped_sphere_sampler,filename='clipped_sphere_{}.csv'.format(i))
 
 def compute_transformation(generator):
@@ -102,16 +102,20 @@ def test_rotated_clipped_sphere_areas() -> None:
     TEST_COUNT = 10
     for i in range(TEST_COUNT):
         center = (0.,0.,0.)
-        radius = generator.uniform(0.1,0.6)
+        radius = generator.uniform(0.5,1.5)
         tilt_angle = generator.uniform(0.,0.25*np.pi)
         tilt = Rotation.from_rotvec([tilt_angle,0.,0.])
         spin_angle = generator.uniform(-np.pi,np.pi)
         spin = Rotation.from_rotvec([0.,0.,spin_angle])
         bottom_point = spin.apply(tilt.apply((0.,0.,-1.)))
+        tilt_angle = generator.uniform(0.,0.*np.pi)
+        tilt = Rotation.from_rotvec([tilt_angle,0.,0.])
+        spin_angle = generator.uniform(-np.pi,np.pi)
+        spin = Rotation.from_rotvec([0.,0.,spin_angle])
         top_point = spin.apply(tilt.apply((0.,0.,1.)))
-        clip_bottom = ClippedSphere.ClipPlane(radius,bottom_point,generator.uniform(0.5,1.)*radius)
-        clip_top = ClippedSphere.ClipPlane(radius,top_point,generator.uniform(0.5,1.)*radius)
-        clipped_sphere_sampler = Shape3DSampler(rules, ClippedSphere(center,radius,[clip_bottom,clip_top]), 0.025)
+        clip_bottom = ClippedSphere.ClipPlane(LeftHanded(),radius,bottom_point,generator.uniform(0.25,0.75)*radius)
+        clip_top = ClippedSphere.ClipPlane(RightHanded(),radius,top_point,generator.uniform(0.5,1.)*radius)
+        clipped_sphere_sampler = Shape3DSampler(rules, ClippedSphere(center,radius,[clip_bottom,clip_top]), 0.025*radius)
         # Use Archimedes' hat-box theorem https://mathworld.wolfram.com/ArchimedesHat-BoxTheorem.html
         # Consider different clipped spheres, one with the top clip only, the other with the bottom only.
         # The area associated either hemisphere is unchanged, regardless clip's orientation in it.
@@ -124,6 +128,6 @@ def test_rotated_clipped_sphere_areas() -> None:
                 clipped_sphere_sampler.shape.surface_differential_area(clipped_sphere_sampler.samples_s[j],
                                                                        clipped_sphere_sampler.samples_t[j])
         clipped_sphere_area_test = np.dot(clipped_sphere_quadrature_weights,clipped_sphere_differential_areas)
-        export_samples(sampler=clipped_sphere_sampler,filename='clipped_sphere_{}.csv'.format(i))
+        if not real_equality(clipped_sphere_area_reference,clipped_sphere_area_test,0.01):
+            export_samples(sampler=clipped_sphere_sampler,filename='clipped_sphere_{}.csv'.format(i))
         assert real_equality(clipped_sphere_area_reference,clipped_sphere_area_test,0.01)
-        

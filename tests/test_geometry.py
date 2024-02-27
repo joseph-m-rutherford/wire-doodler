@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Copyright (c) 2023, Joseph M. Rutherford
 
-from doodler import geometry, real_equality, r3vector_copy, r3vector_equality, Cylinder, ClippedSphere
+from doodler import geometry, real_equality, r3vector_copy, r3vector_equality, Cylinder, ClippedSphere, LeftHanded, RightHanded
 
 import math
 import numpy as np
@@ -33,8 +33,8 @@ def test_shape_construction() -> None:
 
     center = (0.,0.,0.)
     radius = 1.0
-    clip_bottom = ClippedSphere.ClipPlane(radius,r3vector_copy((0.,0.,-1.)),0.75*radius)
-    clip_top = ClippedSphere.ClipPlane(radius,r3vector_copy((0.,0.,1.)),0.75*radius)   
+    clip_bottom = ClippedSphere.ClipPlane(LeftHanded(),radius,r3vector_copy((0.,0.,-1.)),0.75*radius)
+    clip_top = ClippedSphere.ClipPlane(RightHanded(),radius,r3vector_copy((0.,0.,1.)),0.75*radius)   
     unit_sphere = ClippedSphere(center,radius,[clip_bottom,clip_top])
     assert unit_sphere.periodicity == (True,False)
     spans = unit_sphere.min_spans
@@ -127,8 +127,8 @@ def test_clipped_sphere_bounding_box():
     # First sphere: Unit sphere, aligned to global xyz, no clipping (clips at poles)
     center = (0.,0.,0.)
     radius = 1.0
-    clip_bottom = ClippedSphere.ClipPlane(radius,(0.,0.,-1.),0.99*radius)
-    clip_top = ClippedSphere.ClipPlane(radius,(0.,0.,1.),0.99*radius)   
+    clip_bottom = ClippedSphere.ClipPlane(LeftHanded(),radius,(0.,0.,-1.),0.99*radius)
+    clip_top = ClippedSphere.ClipPlane(RightHanded(),radius,(0.,0.,1.),0.99*radius)   
     unit_sphere = ClippedSphere(center,radius,[clip_bottom,clip_top])
     min_uvw = np.zeros((3,))
     max_uvw = np.zeros((3,))
@@ -142,27 +142,27 @@ def test_clipped_sphere_invalid_planes():
     radius = 1.0
     with pytest.raises(InvalidClipPlane):
         # No sphere remaining requires opposite normals
-        clip_bottom = ClippedSphere.ClipPlane(radius,(0.,0.,-1.),0.)
-        clip_top = ClippedSphere.ClipPlane(radius,(0.,0.,-1.),0.)   
+        clip_bottom = ClippedSphere.ClipPlane(LeftHanded(),radius,(0.,0.,-1.),0.)
+        clip_top = ClippedSphere.ClipPlane(RightHanded(),radius,(0.,0.,-1.),0.)   
         unit_sphere = ClippedSphere(center,radius,[clip_bottom,clip_top])
     with pytest.raises(InvalidClipPlane):
         # clips at too large of radius
-        clip_bottom = ClippedSphere.ClipPlane(radius,(0.,0.,-1.),1.1*radius)
-        clip_top = ClippedSphere.ClipPlane(radius,(0.,0.,1.),0.9*radius)   
+        clip_bottom = ClippedSphere.ClipPlane(LeftHanded(),radius,(0.,0.,-1.),1.1*radius)
+        clip_top = ClippedSphere.ClipPlane(RightHanded(),radius,(0.,0.,1.),0.9*radius)   
         unit_sphere = ClippedSphere(center,radius,[clip_bottom,clip_top])
     with pytest.raises(InvalidClipPlane):
         # clips at too large of radius
-        clip_bottom = ClippedSphere.ClipPlane(radius,(0.,0.,-1.),radius)
-        clip_top = ClippedSphere.ClipPlane(radius,(0.,0.,1.),radius-0.9*geometry.TOLERANCE)   
+        clip_bottom = ClippedSphere.ClipPlane(LeftHanded(),radius,(0.,0.,-1.),radius)
+        clip_top = ClippedSphere.ClipPlane(RightHanded(),radius,(0.,0.,1.),radius-0.9*geometry.TOLERANCE)   
         unit_sphere = ClippedSphere(center,radius,[clip_bottom,clip_top])
     with pytest.raises(InvalidClipPlane):
         # duplicate plane
-        clip_bottom = ClippedSphere.ClipPlane(radius,(0.,0.,1.),0.9*radius)
-        clip_top = ClippedSphere.ClipPlane(radius,(0.,0.,1.),0.9*radius)   
+        clip_bottom = ClippedSphere.ClipPlane(LeftHanded(),radius,(0.,0.,1.),0.9*radius)
+        clip_top = ClippedSphere.ClipPlane(RightHanded(),radius,(0.,0.,1.),0.9*radius)   
         unit_sphere = ClippedSphere(center,radius,[clip_bottom,clip_top])
     with pytest.raises(InvalidClipPlane):
         # same hemisphere planes
-        clip_bottom = ClippedSphere.ClipPlane(radius,(0.,-0.6,-0.8),0.9*radius)
-        clip_top = ClippedSphere.ClipPlane(radius,(0.,0.6,-0.8),0.9*radius)   
+        clip_bottom = ClippedSphere.ClipPlane(LeftHanded(),radius,(0.,-0.6,-0.8),0.9*radius)
+        clip_top = ClippedSphere.ClipPlane(RightHanded(),radius,(0.,0.6,-0.8),0.9*radius)   
         unit_sphere = ClippedSphere(center,radius,[clip_bottom,clip_top])
     

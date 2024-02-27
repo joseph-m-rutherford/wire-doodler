@@ -12,18 +12,57 @@ class InvalidClipPlane(Unrecoverable):
     '''Raised when a clipping plane is outside the geometry or has bad orientation'''
     pass
 
+class Orientation:
+    '''Tracks left- or right-handed orientation definitions'''
+    def __init__(self):
+        pass
+
+    def from_sign(argument: int):
+        '''Return an instance of orientation based matching sign'''
+        orientation_from_sign = {-1: LeftHanded(), 1: RightHanded()}
+        return orientation_from_sign[argument]
+
+    @property
+    def sign(self):
+        raise NeverImplement('Orientation sign is implemented only in subclass')
+    
+    @sign.setter
+    def sign(self,value):
+         raise NeverImplement('Orientation sign is immutable')
+
+class LeftHanded(Orientation):
+    '''Indicates alignment with left-handed paths'''
+    def __init__(self):
+        super().__init__()
+    
+    @property
+    def sign(self):
+        return -1
+    
+class RightHanded(Orientation):
+    '''Indicates alignment with right-handed paths'''
+    def __init__(self):
+        super().__init__()
+    
+    @property
+    def sign(self):
+        return 1
+
 class ClippedSphere(Shape3D):
     '''Defines locus of points on a sphere and between two clipping planes'''
     SPHERE_OVERSIZE_SCALE = 1.5
 
     class ClipPlane:
         '''Clipping planes defined in CartesianR3 for use on a sphere'''
-        def __init__(self, sphere_radius:Real, direction:R3Vector, distance:Real):
+        def __init__(self, alignment:Orientation, sphere_radius:Real, direction:R3Vector, distance:Real):
             '''
             Define clipping plane as a radial unit normal and a distance along normal
+            :param Orientation alignment: left or right handed path traversal
             :param Real sphere_radius: radius of associated sphere
             :param R3Vector direction: unit direction interpreted from sphere center in global R3
             :param Real distance: distance along sphere radius at which to clip'''
+
+            self._alignment = alignment
 
             if abs(Real(1) - math.sqrt(np.dot(direction,direction))) > TOLERANCE:
                 raise InvalidClipPlane('Cannot clip at non unit direction |{}| != 1.'.format(direction))
@@ -47,15 +86,26 @@ class ClippedSphere(Shape3D):
             self._circle_v = None
             if abs(self._direction[2]) < TOLERANCE:
                 # normal has no w component, which is an error case
-                raise InvalidClipPlane('Clip plane must have non-trivial local w-direction')
+                raise InvalidClipPlane('Clip plane must have non-trivial parent w-direction')
             # Arbitrary alignment: best match to parent u-direction
-            self._circle_u = np.cross(r3vector_copy((0.,1.,0.)),self._direction)
+            self._circle_u = np.cross(r3vector_copy((0.,alignment.sign,0.)),self._direction)
             self._circle_u /= math.sqrt(np.dot(self._circle_u,self._circle_u))
+            # Capture left-handed behavior here
             self._circle_v = np.cross(self._direction,self._circle_u)
             # Local circle positions lie in a polar arc; compute maximum deviation on that circle in w-direction
             circle_delta_w = self._circle_radius*math.sqrt(self._circle_u[2]*self._circle_u[2]+self._circle_v[2]*self._circle_v[2])
             if abs(self._direction[2])-circle_delta_w < TOLERANCE:
-                raise InvalidClipPlane('Clip plane passes through local w=0 plane')
+                raise InvalidClipPlane('Clip plane passes through parent w=0 plane')
+
+        @property
+        def orientation(self) -> Orientation:
+            '''Path traversal around curve'''
+            return self._alignment
+        
+        @orientation.setter
+        def orientation(self,value):
+            raise NeverImplement('Path orientation cannot be directly set')
+
 
         @property
         def direction(self) -> Real:
@@ -91,8 +141,8 @@ class ClippedSphere(Shape3D):
 
         def circle_position(self,value) -> R3Vector:
             '''Position in 3D given parametric space [-1,1]'''
-            arc_angle = math.pi*value
-            return self._distance*self._direction + \
+            arc_angle = self.orientation.sign*math.pi*value
+            return self.offset + \
                 self._circle_radius * (math.cos(arc_angle)*self._circle_u + math.sin(arc_angle)*self._circle_v)
 
     def __init__(self, center:R3Vector, radius:Real, clips: list[ClipPlane]):
@@ -111,6 +161,8 @@ class ClippedSphere(Shape3D):
             raise Unrecoverable('Sphere clip count must equal two')
         if np.dot(clips[0].direction, clips[1].direction) > -TOLERANCE:
             raise InvalidClipPlane('Clipping planes must reside in opposite hemispheres')
+        if (clips[0].orientation.sign == clips[1].orientation.sign):
+            raise InvalidClipPlane('Clipping planes must have opposing alignments')
         for clip in clips:
             if clip.distance > radius-TOLERANCE:
                 raise InvalidClipPlane('Cannot clip sphere at radial distance {} >= radius {}'.format(clip.distance,self._radius))
@@ -124,20 +176,16 @@ class ClippedSphere(Shape3D):
         segment = clips[1].offset - clips[0].offset
         height = math.sqrt(np.dot(segment,segment))
         if height < TOLERANCE:
-            # Clips are both at origin is no clipping at all or degenerate
-            if abs(np.dot(clips[0].direction,clips[1].direction)+1.) > TOLERANCE:
-                raise InvalidClipPlane('Clipping all of sphere requires opposite surface normals')
-            # Align with global coordinates
-            u_axis = r3vector_copy(1,0,0)
-            v_axis = r3vector_copy(0,1,0)
-            w_axis = r3vector_copy(0,0,1)
+           raise InvalidClipPlane('Clipping all of sphere not allowed opposite surface normals')
         else:
             w_axis = segment/height
+            # All clip directions are unit length
+            direction_projection = np.dot(clips[0].direction,clips[1].direction)
             # Identify special case of collinear cuts
-            if r3vector_equality(clips[0].offset,clips[1].offset,TOLERANCE):
+            if abs(direction_projection-1.) < TOLERANCE:
                 # same pole is not supported
                 raise InvalidClipPlane('An entire sphere may be define by cuts on opposite poles, not the same pole')
-            if r3vector_equality(clips[0].direction,-1*clips[1].direction,TOLERANCE):
+            if abs(direction_projection+1.) < TOLERANCE:
                 # opposite poles is supported
                 # Pick least component of w for computing u,v axes
                 v_segment = None
@@ -153,16 +201,16 @@ class ClippedSphere(Shape3D):
                 # Define coordinate system using plane of two cuts
                 # w parallel to the segment between the cut offset points
                 # v at cross product of 2 cut offsets
-                # u in plane of 2 cut offsets such that their position relative to center is positive in u, zer in v
-                v_axis = np.cross(clips[0].offset,clips[1].offset)
+                # u in plane of 2 cut offsets such that their position relative to center is positive in u, zero in v
+                v_axis = np.cross(clips[0].direction,clips[1].direction)
                 parallelogram_area = math.sqrt(np.dot(v_axis,v_axis))
                 if parallelogram_area < TOLERANCE:
                     raise InvalidClipPlane('Degenerate plane computed from sphere clip vectors')
                 v_axis /= parallelogram_area
                 u_axis = np.cross(v_axis,w_axis)
+        # Everything is tracked in local coordinate system uvw about center
         # Store local coordinate system info
         super().__init__(center,(u_axis,v_axis,w_axis))
-        self._center = r3vector_copy(center)
         self._radius = Real(radius)
         self._clips = [] # Clipping planes to be transcribed
         self._circle_radii = [] # Circles at each clip to be computed
@@ -170,7 +218,7 @@ class ClippedSphere(Shape3D):
         # Define clipping planes in the local uvw space
         parent_to_uvw = np.array([u_axis,v_axis,w_axis])
         for clip in clips:
-            self._clips.append(ClippedSphere.ClipPlane(radius,np.matmul(parent_to_uvw,clip.direction),clip.distance))
+            self._clips.append(ClippedSphere.ClipPlane(clip.orientation,radius,np.matmul(parent_to_uvw,clip.direction),clip.distance))
             self._circle_radii.append(clip.circle_radius)
 
     @Shape3D.periodicity.getter
@@ -195,8 +243,8 @@ class ClippedSphere(Shape3D):
     def min_spans(self) -> tuple[Real]:
         '''Clipped sphere is circular in s, a zenithal arc in t; returns (2*pi*minimum_clipped_radius,radius*shortest_arc_angle)'''
         min_w, max_w = self._shortest_w_spans()
-        horizontal_offset_min_w = max(0.,math.sqrt(self._radius*self._radius-min_w*min_w))
-        horizontal_offset_max_w = max(0.,math.sqrt(self._radius*self._radius-max_w*max_w))
+        horizontal_offset_min_w = math.sqrt(max(0.,self._radius*self._radius-min_w*min_w))
+        horizontal_offset_max_w = math.sqrt(max(0.,self._radius*self._radius-max_w*max_w))
         angle_span = math.atan2(max_w,horizontal_offset_max_w)-math.atan2(min_w,horizontal_offset_min_w)
         return (2*math.pi*min(self._circle_radii),angle_span*self._radius)
 
@@ -207,23 +255,17 @@ class ClippedSphere(Shape3D):
         # Center of clip is at self.offset
         # Radius reduction in w dir is sin(theta)*circle_radius
         # Radius reduction to u,v dirs is 0
+        # W always points from clips[0] to clips[1]
         cos_theta_0 = np.dot(self.axes[:,2],self._clips[0].direction)
         sin_theta_0_squared = max(Real(0),1.-cos_theta_0*cos_theta_0)
         sin_theta_0 = math.sqrt(sin_theta_0_squared)
         deviation_0 = self._circle_radii[0]*sin_theta_0
+        min_w = self._clips[0].offset[2] + deviation_0
         cos_theta_1 = np.dot(self.axes[:,2],self._clips[1].direction)
         sin_theta_1_squared = max(Real(0),1.-cos_theta_1*cos_theta_1)
         sin_theta_1 = math.sqrt(sin_theta_1_squared)
         deviation_1 = self._circle_radii[1]*sin_theta_1
-        max_w, min_w = Real(0),Real(0)
-        if self._clips[0].offset[2] > Real(0):
-            max_w = self._clips[0].offset[2] - deviation_0
-        else:
-            min_w = self._clips[0].offset[2] + deviation_0
-        if self._clips[1].offset[2] > Real(0):
-            max_w = self._clips[1].offset[2] - deviation_1
-        else:
-            min_w = self._clips[1].offset[2] + deviation_1       
+        max_w = self._clips[1].offset[2] - deviation_1   
         return (min_w,max_w)
 
     def _longest_w_spans(self) -> tuple[Real]:
@@ -233,16 +275,17 @@ class ClippedSphere(Shape3D):
         # Center of clip is at self.offset
         # Radius reduction in w dir is sin(theta)*circle_radius
         # Radius reduction to u,v dirs is 0
+        # W always points from clips[0] to clips[1]
         cos_theta_0 = np.dot(self.axes[:,2],self._clips[0].direction)
         sin_theta_0_squared = max(Real(0),1.-cos_theta_0*cos_theta_0)
         sin_theta_0 = math.sqrt(sin_theta_0_squared)
         deviation_0 = self._circle_radii[0]*sin_theta_0
+        min_w = self._clips[0].offset[2] - deviation_0
         cos_theta_1 = np.dot(self.axes[:,2],self._clips[1].direction)
         sin_theta_1_squared = max(Real(0),1.-cos_theta_1*cos_theta_1)
         sin_theta_1 = math.sqrt(sin_theta_1_squared)
         deviation_1 = self._circle_radii[1]*sin_theta_1
-        max_w = max(self._clips[0].offset[2] + deviation_0, self._clips[1].offset[2] + deviation_1)
-        min_w = min(self._clips[0].offset[2] - deviation_0, self._clips[1].offset[2] - deviation_1)
+        max_w = self._clips[1].offset[2] + deviation_1
         return (min_w,max_w)
 
     def bounding_box_local(self, min_uvw:R3Vector, max_uvw:R3Vector) -> None:
@@ -257,11 +300,17 @@ class ClippedSphere(Shape3D):
         '''Given tangential coordinates s,t return azimuthal angle phi, zenithal angle theta, theta span'''
         if valid_tangent_coordinates(s,t):
             # Extract theta = acos(w_component/radius) of point on circles at azimuthal coordinate s
-            clip_thetas = [Real(math.acos(clip.circle_position(s)[2]/self._radius)) for clip in self._clips]
-            theta_span = max(clip_thetas) - min(clip_thetas)
-            midpoint_theta = np.mean(clip_thetas)
-            # At this choice of s, -1<=t<=1 spans [southern_theta,northern_theta]
-            theta_t = midpoint_theta + t*theta_span*0.5
+            max_theta_point,min_theta_point = [clip.circle_position(s) for clip in self._clips]
+            min_theta = math.acos(min_theta_point[2]/self._radius)
+            # Compare projection in u,v plane
+            max_theta = math.acos(max_theta_point[2]/self._radius)
+            if min_theta_point[0]*max_theta_point[0]+min_theta_point[1]*max_theta_point[1] > 0:
+                pass
+            else:
+                max_theta = 2*math.pi - max_theta
+                raise Unrecoverable('Theta arc [{},{}] deg should never cross polar boundaries, s={}'.format(max_theta_point,min_theta_point,s))
+            # At this choice of s, -1<=t<=1 spans [northern_theta,southern_theta]
+            theta_t = 0.5*(min_theta+max_theta) + t*(max_theta-min_theta)*0.5
             return math.pi*s,theta_t
         else:
             raise InvalidTangentCoordinates('Cannot compute local position on sphere at point ({},{})'.format(s,t))
