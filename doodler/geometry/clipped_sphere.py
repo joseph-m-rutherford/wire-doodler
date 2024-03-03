@@ -256,16 +256,16 @@ class ClippedSphere(Shape3D):
         # Radius reduction in w dir is sin(theta)*circle_radius
         # Radius reduction to u,v dirs is 0
         # W always points from clips[0] to clips[1]
-        cos_theta_0 = np.dot(self.axes[:,2],self._clips[0].direction)
+        cos_theta_0 = self._clips[0].direction[2]
         sin_theta_0_squared = max(Real(0),1.-cos_theta_0*cos_theta_0)
         sin_theta_0 = math.sqrt(sin_theta_0_squared)
         deviation_0 = self._circle_radii[0]*sin_theta_0
         min_w = self._clips[0].offset[2] + deviation_0
-        cos_theta_1 = np.dot(self.axes[:,2],self._clips[1].direction)
+        cos_theta_1 = self._clips[1].direction[2]
         sin_theta_1_squared = max(Real(0),1.-cos_theta_1*cos_theta_1)
         sin_theta_1 = math.sqrt(sin_theta_1_squared)
         deviation_1 = self._circle_radii[1]*sin_theta_1
-        max_w = self._clips[1].offset[2] - deviation_1   
+        max_w = self._clips[1].offset[2] - deviation_1
         return (min_w,max_w)
 
     def _longest_w_spans(self) -> tuple[Real]:
@@ -276,12 +276,12 @@ class ClippedSphere(Shape3D):
         # Radius reduction in w dir is sin(theta)*circle_radius
         # Radius reduction to u,v dirs is 0
         # W always points from clips[0] to clips[1]
-        cos_theta_0 = np.dot(self.axes[:,2],self._clips[0].direction)
+        cos_theta_0 = self._clips[0].direction[2]
         sin_theta_0_squared = max(Real(0),1.-cos_theta_0*cos_theta_0)
         sin_theta_0 = math.sqrt(sin_theta_0_squared)
         deviation_0 = self._circle_radii[0]*sin_theta_0
         min_w = self._clips[0].offset[2] - deviation_0
-        cos_theta_1 = np.dot(self.axes[:,2],self._clips[1].direction)
+        cos_theta_1 = self._clips[1].direction[2]
         sin_theta_1_squared = max(Real(0),1.-cos_theta_1*cos_theta_1)
         sin_theta_1 = math.sqrt(sin_theta_1_squared)
         deviation_1 = self._circle_radii[1]*sin_theta_1
@@ -301,17 +301,15 @@ class ClippedSphere(Shape3D):
         if valid_tangent_coordinates(s,t):
             # Extract theta = acos(w_component/radius) of point on circles at azimuthal coordinate s
             max_theta_point,min_theta_point = [clip.circle_position(s) for clip in self._clips]
-            min_theta = math.acos(min_theta_point[2]/self._radius)
             # Compare projection in u,v plane
-            max_theta = math.acos(max_theta_point[2]/self._radius)
-            if min_theta_point[0]*max_theta_point[0]+min_theta_point[1]*max_theta_point[1] > 0:
-                pass
-            else:
-                max_theta = 2*math.pi - max_theta
+            if min_theta_point[0]*max_theta_point[0]+min_theta_point[1]*max_theta_point[1] < 0:
                 raise Unrecoverable('Theta arc [{},{}] deg should never cross polar boundaries, s={}'.format(max_theta_point,min_theta_point,s))
             # At this choice of s, -1<=t<=1 spans [northern_theta,southern_theta]
-            theta_t = 0.5*(min_theta+max_theta) + t*(max_theta-min_theta)*0.5
-            return math.pi*s,theta_t
+            thetas = [math.acos(max_theta_point[2]/self._radius),math.acos(min_theta_point[2]/self._radius)]
+            phis = [math.atan2(min_theta_point[1],min_theta_point[0]),math.atan2(min_theta_point[1],min_theta_point[0])]
+            phi = 0.5*(phis[0]+phis[1]) + t*(phis[1]-phis[0])*0.5
+            theta = 0.5*(thetas[0]+thetas[1]) + t*(thetas[1]-thetas[0])*0.5
+            return phi,theta
         else:
             raise InvalidTangentCoordinates('Cannot compute local position on sphere at point ({},{})'.format(s,t))
 

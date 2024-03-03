@@ -55,12 +55,12 @@ class Shape3D:
     
     @property
     def max_spans(self) -> tuple[Real]:
-        '''Return a bool of real values for maximum span in R3 space for a single arc in s or t'''
+        '''Return a tuple of real values for maximum span in R3 space for a single arc in s or t'''
         raise NeverImplement('Abstract property max_spans')
     
     @property
     def min_spans(self) -> tuple[Real]:
-        '''Return a bool of real values for minimum span in R3 space for a single arc in s or t'''
+        '''Return a tuple of real values for minimum span in R3 space for a single arc in s or t'''
         raise NeverImplement('Abstract property min_spans')
         
     def point_local_to_global(self,point:R3Vector) -> R3Vector:
