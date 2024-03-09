@@ -99,8 +99,8 @@ def test_rotated_cylinder_areas() -> None:
 def test_rotated_clipped_sphere_areas() -> None:
     '''Verify that tilted sphere inputs have correct surface area calculations'''
     rules = quadrature.RuleCache()
-    max_tilt = (15./180)*np.pi
-    TEST_COUNT = 10
+    max_tilt = (10./180)*np.pi
+    TEST_COUNT = 20
     for i in range(TEST_COUNT):
         center = (0.,0.,0.)
         radius = generator.uniform(0.5,1.5)
@@ -114,14 +114,14 @@ def test_rotated_clipped_sphere_areas() -> None:
         spin_angle = generator.uniform(-np.pi,np.pi)
         spin = Rotation.from_rotvec([0.,0.,spin_angle])
         top_point = spin.apply(tilt.apply((0.,0.,1.)))
-        clip_bottom = ClippedSphere.ClipPlane(LeftHanded(),radius,bottom_point,generator.uniform(0.25,0.75)*radius)
-        clip_top = ClippedSphere.ClipPlane(RightHanded(),radius,top_point,generator.uniform(0.5,1.)*radius)
-        clipped_sphere_sampler = Shape3DSampler(rules, ClippedSphere(center,radius,[clip_bottom,clip_top]), 0.05*radius)
+        clip_bottom = ClippedSphere.ClipPlane(LeftHanded(),radius,bottom_point,generator.uniform(0.75,0.99)*radius)
+        clip_top = ClippedSphere.ClipPlane(RightHanded(),radius,top_point,generator.uniform(0.75,0.95)*radius)
+        clipped_sphere_sampler = Shape3DSampler(rules, ClippedSphere(center,radius,[clip_bottom,clip_top]), 0.2*radius)
         # Use Archimedes' hat-box theorem https://mathworld.wolfram.com/ArchimedesHat-BoxTheorem.html
         # Consider different clipped spheres, one with the top clip only, the other with the bottom only.
-        # The area associated either hemisphere is unchanged, regardless clip's orientation in it.
-        # Add the two sphere's areas, and then subtract out the extra sphere surface area
-        clipped_sphere_area_reference = (2*math.pi*radius)*(clip_top.distance+clip_bottom.distance)
+        # The loss of surface area from each clip is the same, regardless of clip orientation.
+        # Subtract the area of the two clipped parts from the whole sphere
+        clipped_sphere_area_reference = (2*math.pi*radius)*(2*radius - (radius-clip_top.distance) - (radius-clip_bottom.distance))
         clipped_sphere_quadrature_weights = clipped_sphere_sampler.weights
         clipped_sphere_differential_areas = np.zeros_like(clipped_sphere_quadrature_weights)
         for j in range(len(clipped_sphere_quadrature_weights)):
@@ -129,6 +129,6 @@ def test_rotated_clipped_sphere_areas() -> None:
                 clipped_sphere_sampler.shape.surface_differential_area(clipped_sphere_sampler.samples_s[j],
                                                                        clipped_sphere_sampler.samples_t[j])
         clipped_sphere_area_test = np.dot(clipped_sphere_quadrature_weights,clipped_sphere_differential_areas)
-        if not real_equality(clipped_sphere_area_reference,clipped_sphere_area_test,0.1):
+        if not real_equality(clipped_sphere_area_reference,clipped_sphere_area_test,0.01):
             export_samples(sampler=clipped_sphere_sampler,filename='clipped_sphere_{}.csv'.format(i))
-        assert real_equality(clipped_sphere_area_reference,clipped_sphere_area_test,0.05)
+        assert real_equality(clipped_sphere_area_reference,clipped_sphere_area_test,0.01)

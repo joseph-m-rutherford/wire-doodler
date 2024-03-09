@@ -144,6 +144,11 @@ class ClippedSphere(Shape3D):
             arc_angle = self.orientation.sign*math.pi*value
             return self.offset + \
                 self._circle_radius * (math.cos(arc_angle)*self._circle_u + math.sin(arc_angle)*self._circle_v)
+        
+        def circle_derivative(self,value) -> R3Vector:
+            '''Derivative of position in 3D given parametric space [-1,1]'''
+            arc_angle = self.orientation.sign*math.pi*value
+            return self._circle_radius * (-1*self.orientation.sign*math.pi*math.sin(arc_angle)*self._circle_u + self.orientation.sign*math.pi*math.cos(arc_angle)*self._circle_v)
 
     def __init__(self, center:R3Vector, radius:Real, clips: list[ClipPlane]):
         '''
@@ -297,18 +302,33 @@ class ClippedSphere(Shape3D):
         max_uvw[:] = (self._radius,self._radius,max_w)
 
     def phi_theta(self, s:Real, t:Real) -> tuple[Real]:
-        '''Given tangential coordinates s,t return azimuthal angle phi, zenithal angle theta, theta span'''
+        '''Given tangential coordinates s,t return azimuthal angle phi, zenithal angle theta
+        
+        For fixed s, position is linearly interpolated in theta; phi is a function of endpoints
+        For fixed t, position is linearly interpolated in phi; theta is a function of endpoints
+        '''
         if valid_tangent_coordinates(s,t):
             # Extract theta = acos(w_component/radius) of point on circles at azimuthal coordinate s
             max_theta_point,min_theta_point = [clip.circle_position(s) for clip in self._clips]
             # Compare projection in u,v plane
             if min_theta_point[0]*max_theta_point[0]+min_theta_point[1]*max_theta_point[1] < 0:
                 raise Unrecoverable('Theta arc [{},{}] deg should never cross polar boundaries, s={}'.format(max_theta_point,min_theta_point,s))
-            # At this choice of s, -1<=t<=1 spans [northern_theta,southern_theta]
+            # At this choice of s, -1<=t<=1 spans [southern_theta,northern_theta]
             thetas = [math.acos(max_theta_point[2]/self._radius),math.acos(min_theta_point[2]/self._radius)]
             phis = [math.atan2(min_theta_point[1],min_theta_point[0]),math.atan2(min_theta_point[1],min_theta_point[0])]
             phi = 0.5*(phis[0]+phis[1]) + t*(phis[1]-phis[0])*0.5
+            # partial phi/partial t = (phis[1]-phis[0])*0.5
+            # partial phi/partial s = pi
             theta = 0.5*(thetas[0]+thetas[1]) + t*(thetas[1]-thetas[0])*0.5
+            # partial theta/partial t = (thetas[1]-thetas[0])*0.5
+            # d acos(u)/du = -1/sqrt(1-u*u); u=cos(v) -> d acos(v)/du = dv/du
+            # partial theta/partial s = 0.5*( partial(min_theta)/partial s + partial(max_theta)/partial s ) + \
+            #                           0.5*t*( partial(min_theta)/partial s + partial(max_theta)/partial s )
+            # for X=min or X=max, evaluation circle position(s) = r
+            #     rho = sqrt(r.x*r.x+r.y*r.y); theta = acos(rho/r.z)
+            #     partial theta/partial s = (partial rho(s)/partial(s)) / r.z - rho(s)/(partial r.z/partial s)
+            #     partial rho(s)/partial(s) = (2*r.x*(partial r.x/partial s)+2*r.y*(partial r.y/partial s)/(2*rho)
+
             return phi,theta
         else:
             raise InvalidTangentCoordinates('Cannot compute local position on sphere at point ({},{})'.format(s,t))
@@ -328,9 +348,47 @@ class ClippedSphere(Shape3D):
         s argument is scaled linearly in polar angle range (-pi,pi) about w-axis
         t argument is scaled linearly on arc between clip plane circles (-height/2,height/2)'''
         phi,theta = self.phi_theta(s,t)
-        theta_span = abs(self.phi_theta(s,1.)[1]-self.phi_theta(s,-1.)[1])
+        local_direction = r3vector_copy((math.sin(theta)*math.cos(phi),math.sin(theta)*math.sin(phi),math.cos(theta)))
 
-        # for integral over 0 < theta < pi and 0 < phi < 2*pi, sphere differential area is r*r*sin(theta) dtheta dphi
-        # s spans 2*pi with range of 2; multiply by pi
-        # t spans theta_span with a range of 2, so multiply by theta_span/2
-        return Real(math.pi*theta_span*0.5*self._radius*self._radius*math.sin(theta))
+        # Rate of change in local r1xr2 space (-theta_hat x phi_hat)
+        min_t_point,max_t_point = [clip.circle_position(s) for clip in self._clips]
+        min_t_theta = math.acos(min_t_point[2]/self._radius)
+        min_t_phi = math.atan2(min_t_point[1],min_t_point[0])
+        min_t_direction = r3vector_copy((math.sin(min_t_theta)*math.cos(min_t_phi),math.sin(min_t_theta)*math.sin(min_t_phi),math.cos(min_t_theta)))
+
+        max_t_theta = math.acos(max_t_point[2]/self._radius)
+        max_t_phi = math.atan2(max_t_point[1],max_t_point[0])
+        max_t_direction = r3vector_copy((math.sin(max_t_theta)*math.cos(max_t_phi),math.sin(max_t_theta)*math.sin(max_t_phi),math.cos(max_t_theta)))
+
+        min_t_partial_s,max_t_partial_s = [clip.circle_derivative(s) for clip in self._clips]
+        # r1 is in local -theta direction, r2 is in local phi direction
+        # Calculate partial derivative of directions r1,r2 with s,t
+        # phi = 0.5*(phis[0]+phis[1]) + t*(phis[1]-phis[0])*0.5
+        # partial phi/partial t = (phis[1]-phis[0])*0.5
+        # partial phi/partial s = pi
+        pr2_pt = 0.5*(max_t_phi-min_t_phi)
+        pr2_ps = math.pi
+        # theta = 0.5*(thetas[0]+thetas[1]) + t*(thetas[1]-thetas[0])*0.5
+        # partial theta/partial t = (thetas[1]-thetas[0])*0.5
+        pr1_pt = -(max_t_theta-min_t_theta)*0.5 # t is linear along theta arc
+        # theta changes with s based on the change in the arc end points
+        # d acos(u)/du = -1/sqrt(1-u*u); u=cos(v) -> d acos(v)/du = dv/du
+        # partial theta/partial s = 0.5*( partial(min_theta)/partial s + partial(max_theta)/partial s ) + \
+        #                           0.5*t*( partial(min_theta)/partial s - partial(max_theta)/partial s )
+        # On min/max t, evaluation circle position(s) = r
+        #     rho = sqrt(r.x*r.x+r.y*r.y); theta = acos(rho/r.z)
+        #     d theta/ds = (partial rho(s)/partial(s)) / r.z - (rho(s)/(r.z*r.z))*(partial r.z/partial s)
+        #     d rho(s)/partial(s) = (2*r.x*(partial r.x/partial s)+2*r.y*(partial r.y/partial s)/(2*rho)
+        # on curve for min,max t: d theta(s)/ds = d acos(rho/r.z) = (drho/ds)/r.z-(rho/(r.z*r.z))*(dr.z/ds)
+        min_t_rho = math.sqrt(min_t_direction[0]*min_t_direction[0]+min_t_direction[1]*min_t_direction[1])
+        min_t_drho_ds = (min_t_direction[0]*min_t_partial_s[0]/self._radius+min_t_direction[1]*min_t_partial_s[1]/self._radius)/min_t_rho
+        min_t_dz_ds = min_t_partial_s[2]
+        min_t_dtheta_ds = (min_t_drho_ds - min_t_rho*min_t_dz_ds/min_t_direction[2])/min_t_direction[2]
+        max_t_rho = math.sqrt(max_t_direction[0]*max_t_direction[0]+max_t_direction[1]*max_t_direction[1])
+        max_t_drho_ds = (max_t_direction[0]*max_t_partial_s[0]/self._radius+max_t_direction[1]*max_t_partial_s[1]/self._radius)/max_t_rho
+        max_t_dz_ds = max_t_partial_s[2]
+        max_t_dtheta_ds = (max_t_drho_ds - max_t_rho*max_t_dz_ds/max_t_direction[2])/max_t_direction[2]
+        pr1_ps = 0.5*(max_t_dtheta_ds+min_t_dtheta_ds)+0.5*t*(max_t_dtheta_ds-min_t_dtheta_ds)
+        det_jacobian = pr1_pt*pr2_ps-pr1_ps*pr2_pt
+        #print('{}*{}-{}*{}={}'.format(pr1_pt,pr2_ps,pr1_ps,pr2_pt,det_jacobian))
+        return Real(det_jacobian)*self._radius*self._radius*math.sin(theta)
