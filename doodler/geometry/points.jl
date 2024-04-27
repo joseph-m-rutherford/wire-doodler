@@ -48,9 +48,9 @@ function get_interior_shared_point!(points::DataFrame,segments::DataFrame,index:
         if search <= shared_point_count
             # requested index is in this segment_count
             start_index = segments.Start[row]
-            start_point = [named_points.X[start_index],named_points.Y[start_index],named_points.Z[start_index]]
+            start_point = [points.X[start_index],points.Y[start_index],points.Z[start_index]]
             stop_index = segments.Stop[row]
-            stop_point = [named_points.X[stop_index],named_points.Y[stop_index],named_points.Z[stop_index]]
+            stop_point = [points.X[stop_index],points.Y[stop_index],points.Z[stop_index]]
             segment_delta = (stop_point-start_point)/segments.Count[row]
             result .= start_point + search*segment_delta
             break
@@ -66,19 +66,19 @@ function get_interior_shared_point!(points::DataFrame,segments::DataFrame,index:
     end
 end
 
-function get_boundary_shared_point!(points::DataFrame,segments::DataFrame,index::Int32,result::Vector{Float64})
+function get_boundary_shared_point!(points::DataFrame,index::Int32,result::Vector{Float64})
     # Boundary points are specified by user
     # Shared points have > 1 use in segments
-    shared_points = points[points.Uses > 1,:]
+    shared_points = points[points.Uses .> 1,:]
     if index > nrow(shared_points)
         throw(DomainError("requested index exceeds shared user point count"))
     end
     result .= [shared_points.X[index],shared_points.Y[index],shared_points.Z[index]]
 end
 
-function get_boundary_unshared_point!(points::DataFrame,segments::DataFrame,index::Int32,result::Vector{Float64})
+function get_boundary_unshared_point!(points::DataFrame,index::Int32,result::Vector{Float64})
     # Boundary points are specified by user
-    # Unshared points have > 1 use in segments
+    # Unshared points have 1 use in segments
     shared_points = points[points.Uses .== 1,:]
     if index > nrow(shared_points)
         throw(DomainError("requested index exceeds shared user point count"))
