@@ -9,23 +9,24 @@
   - Base contract: `Shape3D` in `doodler/geometry/common.py`.
   - Implementations: `Cylinder`, `ClippedSphere`.
 - `doodler/quadrature/` provides cached integration rules.
-  - `RuleCache` loads Gauss/Kronrod 1D rules from bundled parquet files and builds 2D tensor rules (`Rule2D`).
-- `doodler/geometry/sampler.py` bridges both: `Shape3DSampler` selects rule sizes from geometric spans, then maps 2D rule positions to 3D points.
+  - `RuleCache` loads various 1D rules from bundled parquet files and builds 2D tensor rules (`Rule2D`).
+- `doodler/geometry/sampler.py` bridges both: `Shape3DSampler` accesses rule sizes from geometric spans, then maps 2D rule positions to 3D points.
 
 ## Critical conventions (project-specific)
 - Numeric dtypes are explicit aliases (`Real`, `Index`, `Integer`), mostly `numpy.float64`/`int64`; preserve these when adding arrays.
 - Validate and copy vector inputs through `r3vector_copy` / `axes3d_copy` (`doodler/r3.py`) instead of trusting caller arrays.
 - Error taxonomy is meaningful:
-  - raise `Recoverable` for missing/retriable conditions (e.g., absent cached rule files),
-  - raise `Unrecoverable` for invalid geometry/state,
+  - raise `Recoverable` for retriable conditions (e.g., absent cached rule files),
+  - raise `Unrecoverable` for invalid state,
   - use `NeverImplement` for immutable setters/abstract behavior.
 - Many properties are intentionally immutable and use setter methods that always raise; do not add mutability unless tests demand it.
 - Coordinate guardrails are strict: geometry methods must reject out-of-range tangent coordinates via `InvalidTangentCoordinates`.
 
 ## Workflows and commands
-- There is no pinned dependency file in this repo; set up env manually before running tests.
-- Typical local setup:
-  - `python -m pip install numpy pyarrow scipy pytest`
+- Python dependencies are listed in `requirements-python.txt`; install them with:
+  - `python -m pip install -r requirements-python.txt`
+  - If you prefer manual installs, the equivalent single-package command is:
+    - `python -m pip install numpy pyarrow scipy pytest`
 - Run all tests:
   - `python -m pytest -q`
 - Run targeted tests while iterating geometry/sampling:
