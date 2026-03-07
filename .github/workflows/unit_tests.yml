@@ -1,14 +1,14 @@
-name: Pytest CI
+name: Python Unit Tests
 
 on:
   pull_request:
 
 jobs:
   test:
-    name: Run tests
+    name: Python Unit Tests
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
       - name: Setup Python
@@ -24,7 +24,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pip-py-3.14
 
-      - name: Install dependencies
+      - name: Install Python Dependencies
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
@@ -34,15 +34,15 @@ jobs:
         with:
           version: '1.12'
 
-      - name: Install Julia packages
+      - name: Install Julia Dependencies
         run: |
-          julia -e 'using Pkg; Pkg.add("Arrow")'
+          julia -e 'using Pkg; Pkg.add(["Arrow","DataFrames","Parquet","QuadGK"])'
 
-      - name: Generate quadrature rules
+      - name: Generate Quadrature Rules
         working-directory: doodler/quadrature
         run: |
           julia generate_quadrature_rules.jl
 
-      - name: Run tests
+      - name: Run Python Unit Tests
         run: |
           python -m pytest -q
