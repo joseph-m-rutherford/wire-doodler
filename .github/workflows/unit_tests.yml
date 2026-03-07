@@ -10,6 +10,20 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+        
+      - name: Setup Julia
+        uses: julia-actions/setup-julia@v1
+        with:
+          version: '1.12'
+
+      - name: Install Julia Dependencies
+        run: |
+          julia -e 'using Pkg; Pkg.add(["Arrow","DataFrames","Parquet","QuadGK"])'
+
+      - name: Generate Quadrature Rules
+        working-directory: doodler/quadrature
+        run: |
+          julia generate_quadrature_rules.jl
 
       - name: Setup Python
         uses: actions/setup-python@v4
@@ -28,20 +42,6 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
-
-      - name: Setup Julia
-        uses: julia-actions/setup-julia@v1
-        with:
-          version: '1.12'
-
-      - name: Install Julia Dependencies
-        run: |
-          julia -e 'using Pkg; Pkg.add(["Arrow","DataFrames","Parquet","QuadGK"])'
-
-      - name: Generate Quadrature Rules
-        working-directory: doodler/quadrature
-        run: |
-          julia generate_quadrature_rules.jl
 
       - name: Run Python Unit Tests
         run: |
