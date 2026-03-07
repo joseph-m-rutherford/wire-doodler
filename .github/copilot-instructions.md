@@ -33,8 +33,8 @@
   - `python -m pytest tests/test_geometry.py tests/test_shape_samples.py -q`
 
 ## Data/dependency integration points
-- Quadrature rule files are local assets in `doodler/quadrature/*.parquet`; `RuleCache` resolves them relative to that package directory.
-- Rule generation script exists at `doodler/quadrature/generate_quadrature_rules.jl` (Julia), but normal Python workflows consume existing parquet files.
+- Quadrature rule parquet files are generated artifacts written under `doodler/quadrature/*.parquet`; `RuleCache` resolves any cached rules relative to that package directory when they exist.
+- The source of truth for these rules is the Julia script `doodler/quadrature/generate_quadrature_rules.jl`, which is run in CI (and should be run locally when needed) to regenerate the parquet files consumed by Python tests and workflows.
 - Sampling accuracy behavior is validated against SciPy integration in tests; changing span/rule selection logic in `Shape3DSampler` will affect many assertions.
 
 ## Testing patterns to mirror
