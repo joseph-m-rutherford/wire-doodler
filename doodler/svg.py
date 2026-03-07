@@ -3,8 +3,11 @@
 
 import xml.etree.ElementTree as ET
 
+import numpy as np
+
 from .common import Real
 from .errors import Unrecoverable
+from .r3 import R3Axes, R3Vector, r3vector_copy, axes3d_copy
 
 
 def _local_tag(element: ET.Element) -> str:
@@ -47,7 +50,8 @@ def read_svg(path: str) -> dict[str, list[tuple[Real, Real]]]:
     ------
     Unrecoverable:
         If the file cannot be read or parsed, any line/polyline lacks an id
-        attribute, ids are duplicated, or coordinate data is malformed.
+        attribute, any line is missing a coordinate attribute, ids are
+        duplicated, or coordinate data is malformed.
     """
     try:
         tree = ET.parse(path)
@@ -74,11 +78,16 @@ def read_svg(path: str) -> dict[str, list[tuple[Real, Real]]]:
             )
 
         if local == 'line':
+            for attr in ('x1', 'y1', 'x2', 'y2'):
+                if element.get(attr) is None:
+                    raise Unrecoverable(
+                        f'Line id={element_id!r} is missing required coordinate attribute {attr!r}'
+                    )
             try:
-                x1 = Real(element.get('x1', '0'))
-                y1 = Real(element.get('y1', '0'))
-                x2 = Real(element.get('x2', '0'))
-                y2 = Real(element.get('y2', '0'))
+                x1 = Real(element.get('x1'))
+                y1 = Real(element.get('y1'))
+                x2 = Real(element.get('x2'))
+                y2 = Real(element.get('y2'))
             except (ValueError, TypeError) as exc:
                 raise Unrecoverable(exc)
             result[element_id] = [(x1, y1), (x2, y2)]
@@ -91,3 +100,91 @@ def read_svg(path: str) -> dict[str, list[tuple[Real, Real]]]:
             result[element_id] = _parse_polyline_points(points_attr, element_id)
 
     return result
+
+
+def as_xyz(
+    segments: dict[str, list[tuple[Real, Real]]],
+    uvw: R3Axes,
+    xyz_offset: R3Vector,
+) -> dict[str, list[R3Vector]]:
+    """Convert 2-D SVG segments into 3-D global coordinates.
+
+    Each (u, v) point in *segments* is treated as a position in the plane
+    w=0 of the orthonormal frame *uvw*, then shifted by *xyz_offset*.
+
+    Parameters
+    ----------
+    segments:
+        Output of :func:`read_svg` — a dict mapping names to lists of
+        (u, v) coordinate pairs.
+    uvw:
+        A (3, 3) array whose rows are the orthonormal basis vectors
+        u = uvw[0], v = uvw[1], w = uvw[2].  Validated via
+        :func:`axes3d_copy`.
+    xyz_offset:
+        A length-3 global offset added to every converted point.
+        Validated via :func:`r3vector_copy`.
+
+    Returns
+    -------
+    dict mapping each segment name to a list of length-3 ``numpy`` arrays
+    (dtype :data:`Real`) in global x, y, z coordinates.
+    """
+    frame = axes3d_copy(uvw)
+    offset = r3vector_copy(xyz_offset)
+    u_hat = frame[0]
+    v_hat = frame[1]
+
+    result: dict[str, list[R3Vector]] = {}
+    for name, points in segments.items():
+        xyz_points: list[R3Vector] = []
+        for u, v in points:
+            point = np.array(u * u_hat + v * v_hat, dtype=Real) + offset
+            xyz_points.append(point)
+        result[name] = xyz_points
+    return result
+
+
+def export_polylines(segments: dict[str, list[R3Vector]], filename: str) -> None:
+    """Write 3-D segment data to a legacy VTK ASCII file as LINES.
+
+    Parameters
+    ----------
+    segments:
+        Output of :func:`as_xyz` — a dict mapping names to lists of
+        length-3 numpy arrays in global x, y, z coordinates.
+    filename:
+        Destination file path.  Overwrites existing files.
+
+    Raises
+    ------
+    Unrecoverable:
+        If the output file cannot be written.
+    """
+    # Flatten all points and record per-segment index ranges.
+    all_points: list[R3Vector] = []
+    line_index_lists: list[list[int]] = []
+    for pts in segments.values():
+        start = len(all_points)
+        all_points.extend(pts)
+        line_index_lists.append(list(range(start, start + len(pts))))
+
+    n_points = len(all_points)
+    n_lines = len(line_index_lists)
+    # VTK legacy: total_size = sum of (npts_per_line + 1) for each line
+    total_size = sum(len(idx) + 1 for idx in line_index_lists)
+
+    try:
+        with open(filename, 'w', encoding='ascii') as f:
+            f.write('# vtk DataFile Version 2.0\n')
+            f.write('wire-doodler polylines\n')
+            f.write('ASCII\n')
+            f.write('DATASET POLYDATA\n')
+            f.write(f'POINTS {n_points} float\n')
+            for pt in all_points:
+                f.write(f'{float(pt[0])} {float(pt[1])} {float(pt[2])}\n')
+            f.write(f'LINES {n_lines} {total_size}\n')
+            for indices in line_index_lists:
+                f.write(' '.join([str(len(indices))] + [str(i) for i in indices]) + '\n')
+    except OSError as exc:
+        raise Unrecoverable(exc)

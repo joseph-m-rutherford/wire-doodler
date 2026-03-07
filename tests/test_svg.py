@@ -3,7 +3,11 @@
 
 import pytest
 
-from doodler import read_svg, Real, Unrecoverable
+import numpy as np
+import pytest
+
+from doodler import read_svg, as_xyz, export_polylines, Real, Unrecoverable, R3Axes, R3Vector, r3vector_equality, real_equality
+from doodler.r3 import TOLERANCE
 
 
 # ---------------------------------------------------------------------------
@@ -145,11 +149,9 @@ def test_missing_file_raises():
         read_svg('/nonexistent/no_such_file.svg')
 
 
-def test_line_missing_coords_defaults_to_zero(tmp_path):
-    result = read_svg(_svg_file(tmp_path, _SVG_DEFAULT_COORDS))
-    pts = result['origin']
-    assert pts[0] == (Real(0), Real(0))
-    assert pts[1] == (Real(0), Real(0))
+def test_line_missing_coords_raises(tmp_path):
+    with pytest.raises(Unrecoverable):
+        read_svg(_svg_file(tmp_path, _SVG_DEFAULT_COORDS))
 
 
 def test_coordinate_dtype(tmp_path):
@@ -164,3 +166,208 @@ def test_returns_empty_dict_for_svg_with_no_lines(tmp_path):
     svg = '<svg xmlns="http://www.w3.org/2000/svg"><rect id="r" width="10" height="10"/></svg>'
     result = read_svg(_svg_file(tmp_path, svg))
     assert result == {}
+
+
+# ---------------------------------------------------------------------------
+# as_xyz tests
+# ---------------------------------------------------------------------------
+
+# Standard basis: u=x, v=y, w=z
+_IDENTITY_FRAME = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]], dtype=Real)
+_ZERO_OFFSET = np.array([0, 0, 0], dtype=Real)
+
+
+def test_as_xyz_identity_frame_line(tmp_path):
+    """With identity frame and zero offset, x,y map directly to x,y with z=0."""
+    segs = read_svg(_svg_file(tmp_path, _SVG_NAMESPACED))
+    result = as_xyz(segs, _IDENTITY_FRAME, _ZERO_OFFSET)
+    pts = result['seg1']
+    assert len(pts) == 2
+    assert r3vector_equality(pts[0], np.array([0, 0, 0], dtype=Real), TOLERANCE)
+    assert r3vector_equality(pts[1], np.array([10, 20, 0], dtype=Real), TOLERANCE)
+
+
+def test_as_xyz_identity_frame_polyline(tmp_path):
+    segs = read_svg(_svg_file(tmp_path, _SVG_NAMESPACED))
+    result = as_xyz(segs, _IDENTITY_FRAME, _ZERO_OFFSET)
+    pts = result['tri']
+    assert len(pts) == 3
+    assert r3vector_equality(pts[0], np.array([0, 0, 0], dtype=Real), TOLERANCE)
+    assert r3vector_equality(pts[1], np.array([5, 10, 0], dtype=Real), TOLERANCE)
+    assert r3vector_equality(pts[2], np.array([10, 0, 0], dtype=Real), TOLERANCE)
+
+
+def test_as_xyz_with_offset(tmp_path):
+    """A non-zero offset shifts every point."""
+    segs = read_svg(_svg_file(tmp_path, _SVG_NAMESPACED))
+    offset = np.array([1, 2, 3], dtype=Real)
+    result = as_xyz(segs, _IDENTITY_FRAME, offset)
+    pts = result['seg1']
+    assert r3vector_equality(pts[0], np.array([1, 2, 3], dtype=Real), TOLERANCE)
+    assert r3vector_equality(pts[1], np.array([11, 22, 3], dtype=Real), TOLERANCE)
+
+
+def test_as_xyz_rotated_frame(tmp_path):
+    """u=y, v=z, w=x: SVG (u,v) becomes global (0, u, v)."""
+    # u=y-axis, v=z-axis, w=x-axis  (right-handed: y cross z = x)
+    frame = np.array([[0, 1, 0], [0, 0, 1], [1, 0, 0]], dtype=Real)
+    svg = '''\
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg">
+  <line id="r" x1="1" y1="2" x2="3" y2="4"/>
+</svg>'''
+    segs = read_svg(_svg_file(tmp_path, svg))
+    result = as_xyz(segs, frame, _ZERO_OFFSET)
+    pts = result['r']
+    # point (u=1, v=2) -> 1*y_hat + 2*z_hat = (0, 1, 2)
+    assert r3vector_equality(pts[0], np.array([0, 1, 2], dtype=Real), TOLERANCE)
+    # point (u=3, v=4) -> 3*y_hat + 4*z_hat = (0, 3, 4)
+    assert r3vector_equality(pts[1], np.array([0, 3, 4], dtype=Real), TOLERANCE)
+
+
+def test_as_xyz_returns_real_dtype(tmp_path):
+    segs = read_svg(_svg_file(tmp_path, _SVG_NAMESPACED))
+    result = as_xyz(segs, _IDENTITY_FRAME, _ZERO_OFFSET)
+    for pts in result.values():
+        for pt in pts:
+            assert pt.dtype == Real
+
+
+def test_as_xyz_empty_segments():
+    result = as_xyz({}, _IDENTITY_FRAME, _ZERO_OFFSET)
+    assert result == {}
+
+
+def test_as_xyz_invalid_frame_raises():
+    bad_frame = np.eye(3, dtype=Real) * 2  # not orthonormal
+    with pytest.raises(Unrecoverable):
+        as_xyz({}, bad_frame, _ZERO_OFFSET)
+
+
+def test_as_xyz_invalid_offset_raises():
+    bad_offset = np.array([1, 2], dtype=Real)  # wrong length
+    with pytest.raises(Unrecoverable):
+        as_xyz({}, _IDENTITY_FRAME, bad_offset)
+
+
+# ---------------------------------------------------------------------------
+# export_polylines tests
+# ---------------------------------------------------------------------------
+
+def _parse_vtk(path):
+    """Parse a legacy VTK POLYDATA file; return (points, lines) where
+    points is a list of (x,y,z) float tuples and lines is a list of
+    lists of integer indices."""
+    with open(path, encoding='ascii') as f:
+        lines_raw = f.read().splitlines()
+    points = []
+    lines_out = []
+    i = 0
+    while i < len(lines_raw):
+        tok = lines_raw[i].strip()
+        if tok.upper().startswith('POINTS'):
+            n = int(tok.split()[1])
+            i += 1
+            while len(points) < n * 3:
+                for chunk in lines_raw[i].split():
+                    points.append(float(chunk))
+                i += 1
+            points = [(points[j], points[j+1], points[j+2])
+                      for j in range(0, len(points), 3)]
+        elif tok.upper().startswith('LINES'):
+            n_lines = int(tok.split()[1])
+            i += 1
+            for _ in range(n_lines):
+                nums = list(map(int, lines_raw[i].split()))
+                lines_out.append(nums[1:nums[0]+1])
+                i += 1
+        else:
+            i += 1
+    return points, lines_out
+
+
+def _make_segments():
+    """Build a simple as_xyz-style segments dict for export tests."""
+    return {
+        'a': [np.array([0, 0, 0], dtype=Real), np.array([1, 0, 0], dtype=Real)],
+        'b': [np.array([0, 1, 0], dtype=Real), np.array([0, 1, 1], dtype=Real),
+              np.array([0, 1, 2], dtype=Real)],
+    }
+
+
+def test_export_polylines_creates_file(tmp_path):
+    out = str(tmp_path / 'out.vtk')
+    export_polylines(_make_segments(), out)
+    import os
+    assert os.path.isfile(out)
+
+
+def test_export_polylines_vtk_header(tmp_path):
+    out = str(tmp_path / 'out.vtk')
+    export_polylines(_make_segments(), out)
+    with open(out, encoding='ascii') as f:
+        header = f.readline().strip()
+    assert header.startswith('# vtk DataFile Version')
+
+
+def test_export_polylines_point_count(tmp_path):
+    out = str(tmp_path / 'out.vtk')
+    segs = _make_segments()
+    export_polylines(segs, out)
+    pts, _ = _parse_vtk(out)
+    total = sum(len(v) for v in segs.values())
+    assert len(pts) == total
+
+
+def test_export_polylines_line_count(tmp_path):
+    out = str(tmp_path / 'out.vtk')
+    segs = _make_segments()
+    export_polylines(segs, out)
+    _, vtk_lines = _parse_vtk(out)
+    assert len(vtk_lines) == len(segs)
+
+
+def test_export_polylines_connectivity(tmp_path):
+    out = str(tmp_path / 'out.vtk')
+    segs = _make_segments()
+    export_polylines(segs, out)
+    pts, vtk_lines = _parse_vtk(out)
+    # Reconstruct coordinates from connectivity and compare to input.
+    all_input = [tuple(float(c) for c in pt)
+                 for name in segs for pt in segs[name]]
+    for line_indices in vtk_lines:
+        for idx in line_indices:
+            assert pts[idx] == all_input[idx]
+
+
+def test_export_polylines_segment_lengths(tmp_path):
+    out = str(tmp_path / 'out.vtk')
+    segs = _make_segments()
+    export_polylines(segs, out)
+    _, vtk_lines = _parse_vtk(out)
+    expected_lengths = [len(v) for v in segs.values()]
+    assert [len(l) for l in vtk_lines] == expected_lengths
+
+
+def test_export_polylines_coordinate_values(tmp_path):
+    out = str(tmp_path / 'out.vtk')
+    segs = {'seg': [np.array([1.5, 2.5, 3.5], dtype=Real),
+                    np.array([4.5, 5.5, 6.5], dtype=Real)]}
+    export_polylines(segs, out)
+    pts, _ = _parse_vtk(out)
+    assert pts[0] == (1.5, 2.5, 3.5)
+    assert pts[1] == (4.5, 5.5, 6.5)
+
+
+def test_export_polylines_empty_segments(tmp_path):
+    out = str(tmp_path / 'out.vtk')
+    export_polylines({}, out)
+    pts, vtk_lines = _parse_vtk(out)
+    assert pts == []
+    assert vtk_lines == []
+
+
+def test_export_polylines_bad_path_raises():
+    with pytest.raises(Unrecoverable):
+        export_polylines({}, '/nonexistent/directory/out.vtk')
+
