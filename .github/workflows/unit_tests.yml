@@ -16,9 +16,13 @@ jobs:
         with:
           version: '1.12'
 
+      - name: Cache Julia artifacts
+        uses: julia-actions/cache@v1
+
       - name: Install Julia Dependencies
+        working-directory: doodler/quadrature
         run: |
-          julia -e 'using Pkg; Pkg.add(["Arrow","DataFrames","Parquet","QuadGK"])'
+          julia -e 'using Pkg; Pkg.instantiate()'
 
       - name: Generate Quadrature Rules
         working-directory: doodler/quadrature
