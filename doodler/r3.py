@@ -62,7 +62,7 @@ def r3vector_equality(a: R3Vector, b: R3Vector, tolerance: Real) -> bool:
         raise Unrecoverable('Cannot perform relative equality with finer tolerance than module relative tolerance')
     max_length_squared = max(np.dot(a,a),np.dot(b,b))
     if max_length_squared < tolerance*tolerance: # detect comparison of values at origin
-        return true
+        return True
     difference = b-a
     difference_length_squared = np.dot(difference,difference)
     return difference_length_squared < max_length_squared*tolerance*tolerance
