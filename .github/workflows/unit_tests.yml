@@ -7,6 +7,9 @@ jobs:
   test:
     name: Python Unit Tests
     runs-on: ubuntu-latest
+    env:
+      JULIA_VERSION: '1.12'
+      PYTHON_VERSION: '3.14'
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -14,15 +17,23 @@ jobs:
       - name: Setup Julia
         uses: julia-actions/setup-julia@v1
         with:
-          version: '1.12'
+          version: ${{ env.JULIA_VERSION }}
 
-      - name: Cache Julia artifacts
-        uses: julia-actions/cache@v1
+      - name: Cache Julia packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.julia/artifacts
+            ~/.julia/compiled
+            ~/.julia/packages
+            ~/.julia/registries
+          key: ${{ runner.os }}-julia-${{ env.JULIA_VERSION }}-pkgs-${{ hashFiles('doodler/quadrature/Project.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-julia-pkgs-
 
-      - name: Install Julia Dependencies
-        working-directory: doodler/quadrature
+      - name: Install Julia packages for generator
         run: |
-          julia -e 'using Pkg; Pkg.instantiate()'
+          julia -e 'using Pkg; Pkg.instantiate(); Pkg.precompile()'
 
       - name: Generate Quadrature Rules
         working-directory: doodler/quadrature
@@ -32,15 +43,15 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.14'
+          python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Cache pip
         uses: actions/cache@v4
         with:
           path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-py-3.14-${{ hashFiles('requirements-python.txt') }}
+          key: ${{ runner.os }}-python-${{ env.PYTHON_VERSION }}-pip-${{ hashFiles('requirements-python.txt') }}
           restore-keys: |
-            ${{ runner.os }}-pip-py-3.14
+            ${{ runner.os }}-python-${{ env.PYTHON_VERSION }}-pip-
 
       - name: Install Python Dependencies
         run: |
