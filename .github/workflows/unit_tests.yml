@@ -29,16 +29,17 @@ jobs:
             ~/.julia/registries
           key: ${{ runner.os }}-julia-${{ env.JULIA_VERSION }}-pkgs-${{ hashFiles('doodler/quadrature/Project.toml') }}
           restore-keys: |
-            ${{ runner.os }}-julia-pkgs-
+            ${{ runner.os }}-julia-${{ env.JULIA_VERSION }}pkgs-
 
-      - name: Install Julia packages for generator
+      - name: Install Julia packages
+        working-directory: doodler/quadrature
         run: |
-          julia -e 'using Pkg; Pkg.instantiate(); Pkg.precompile()'
+          julia --project=. -e 'using Pkg; Pkg.instantiate(); Pkg.precompile()'
 
       - name: Generate Quadrature Rules
         working-directory: doodler/quadrature
         run: |
-          julia generate_quadrature_rules.jl
+          julia --project=. generate_quadrature_rules.jl
 
       - name: Setup Python
         uses: actions/setup-python@v4
