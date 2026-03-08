@@ -42,3 +42,10 @@ class NeverImplement(Unrecoverable):
             super.__init__(self,error)
         else:
             raise Unrecoverable('NeverImplement requires a string argument')
+
+class NotYetImplemented(Unrecoverable):
+    '''Raise when a feature is planned but not yet implemented'''
+
+    def __init__(self, error):
+        '''Parent class retains the error content'''
+        super().__init__(error)

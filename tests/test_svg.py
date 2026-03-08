@@ -6,7 +6,7 @@ import pytest
 import numpy as np
 import pytest
 
-from doodler import read_svg, as_xyz, export_polylines, Real, Unrecoverable, R3Axes, R3Vector, r3vector_equality, real_equality
+from doodler import read_svg, as_xyz, export_polylines, Real, Unrecoverable, NotYetImplemented, R3Axes, R3Vector, r3vector_equality, real_equality
 from doodler.r3 import TOLERANCE
 
 
@@ -347,6 +347,229 @@ def test_export_polylines_segment_lengths(tmp_path):
     _, vtk_lines = _parse_vtk(out)
     expected_lengths = [len(v) for v in segs.values()]
     assert [len(l) for l in vtk_lines] == expected_lengths
+
+
+# ---------------------------------------------------------------------------
+# path element tests
+# ---------------------------------------------------------------------------
+
+_SVG_PATH_LINE = '''\
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg">
+  <path id="seg" d="M 0 0 L 10 20"/>
+</svg>'''
+
+_SVG_PATH_POLYLINE = '''\
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg">
+  <path id="tri" d="M 0 0 L 5 10 L 10 0"/>
+</svg>'''
+
+_SVG_PATH_RELATIVE = '''\
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg">
+  <path id="rel" d="m 1 1 l 2 0 l 0 2"/>
+</svg>'''
+
+_SVG_PATH_HORIZONTAL_VERTICAL = '''\
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg">
+  <path id="hv" d="M 0 0 H 5 V 3"/>
+</svg>'''
+
+_SVG_PATH_RELATIVE_HV = '''\
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg">
+  <path id="rhv" d="M 1 1 h 4 v 2"/>
+</svg>'''
+
+_SVG_PATH_CLOSE = '''\
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg">
+  <path id="sq" d="M 0 0 H 10 V 10 Z"/>
+</svg>'''
+
+_SVG_PATH_IMPLICIT_LINETO = '''\
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg">
+  <path id="imp" d="M 0 0 5 10 10 0"/>
+</svg>'''
+
+_SVG_PATH_ARC = '''\
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg">
+  <path id="arc" d="M 0 0 A 5 5 0 0 1 10 0"/>
+</svg>'''
+
+_SVG_PATH_CUBIC = '''\
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg">
+  <path id="cub" d="M 0 0 C 1 1 2 2 3 0"/>
+</svg>'''
+
+_SVG_PATH_QUADRATIC = '''\
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg">
+  <path id="qua" d="M 0 0 Q 5 10 10 0"/>
+</svg>'''
+
+_SVG_PATH_SMOOTH_CUBIC = '''\
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg">
+  <path id="sc" d="M 0 0 S 5 5 10 0"/>
+</svg>'''
+
+_SVG_PATH_SMOOTH_QUADRATIC = '''\
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg">
+  <path id="sq2" d="M 0 0 T 10 0"/>
+</svg>'''
+
+_SVG_PATH_MISSING_ID = '''\
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg">
+  <path d="M 0 0 L 1 1"/>
+</svg>'''
+
+_SVG_PATH_EMPTY_D = '''\
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg">
+  <path id="empty" d=""/>
+</svg>'''
+
+_SVG_PATH_DUPLICATE_ID = '''\
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg">
+  <path id="same" d="M 0 0 L 1 1"/>
+  <path id="same" d="M 2 2 L 3 3"/>
+</svg>'''
+
+_SVG_MIXED_ELEMENTS = '''\
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg">
+  <line id="ln" x1="0" y1="0" x2="1" y2="1"/>
+  <polyline id="pl" points="0,0 2,0 2,2"/>
+  <path id="pa" d="M 3 0 L 5 5"/>
+</svg>'''
+
+
+def test_path_line_two_points(tmp_path):
+    result = read_svg(_svg_file(tmp_path, _SVG_PATH_LINE))
+    assert 'seg' in result
+    pts = result['seg']
+    assert len(pts) == 2
+    assert pts[0] == (Real(0), Real(0))
+    assert pts[1] == (Real(10), Real(20))
+
+
+def test_path_polyline_three_points(tmp_path):
+    result = read_svg(_svg_file(tmp_path, _SVG_PATH_POLYLINE))
+    pts = result['tri']
+    assert len(pts) == 3
+    assert pts[0] == (Real(0), Real(0))
+    assert pts[1] == (Real(5), Real(10))
+    assert pts[2] == (Real(10), Real(0))
+
+
+def test_path_relative_commands(tmp_path):
+    result = read_svg(_svg_file(tmp_path, _SVG_PATH_RELATIVE))
+    pts = result['rel']
+    assert len(pts) == 3
+    assert pts[0] == (Real(1), Real(1))
+    assert pts[1] == (Real(3), Real(1))
+    assert pts[2] == (Real(3), Real(3))
+
+
+def test_path_absolute_horizontal_vertical(tmp_path):
+    result = read_svg(_svg_file(tmp_path, _SVG_PATH_HORIZONTAL_VERTICAL))
+    pts = result['hv']
+    assert len(pts) == 3
+    assert pts[0] == (Real(0), Real(0))
+    assert pts[1] == (Real(5), Real(0))
+    assert pts[2] == (Real(5), Real(3))
+
+
+def test_path_relative_horizontal_vertical(tmp_path):
+    result = read_svg(_svg_file(tmp_path, _SVG_PATH_RELATIVE_HV))
+    pts = result['rhv']
+    assert len(pts) == 3
+    assert pts[0] == (Real(1), Real(1))
+    assert pts[1] == (Real(5), Real(1))
+    assert pts[2] == (Real(5), Real(3))
+
+
+def test_path_close_appends_start_point(tmp_path):
+    result = read_svg(_svg_file(tmp_path, _SVG_PATH_CLOSE))
+    pts = result['sq']
+    assert len(pts) == 4
+    assert pts[0] == (Real(0), Real(0))
+    assert pts[-1] == (Real(0), Real(0))
+
+
+def test_path_implicit_lineto_after_move(tmp_path):
+    result = read_svg(_svg_file(tmp_path, _SVG_PATH_IMPLICIT_LINETO))
+    pts = result['imp']
+    assert len(pts) == 3
+    assert pts[0] == (Real(0), Real(0))
+    assert pts[1] == (Real(5), Real(10))
+    assert pts[2] == (Real(10), Real(0))
+
+
+def test_path_arc_raises_not_yet_implemented(tmp_path):
+    with pytest.raises(NotYetImplemented):
+        read_svg(_svg_file(tmp_path, _SVG_PATH_ARC))
+
+
+def test_path_cubic_bezier_raises_not_yet_implemented(tmp_path):
+    with pytest.raises(NotYetImplemented):
+        read_svg(_svg_file(tmp_path, _SVG_PATH_CUBIC))
+
+
+def test_path_quadratic_bezier_raises_not_yet_implemented(tmp_path):
+    with pytest.raises(NotYetImplemented):
+        read_svg(_svg_file(tmp_path, _SVG_PATH_QUADRATIC))
+
+
+def test_path_smooth_cubic_raises_not_yet_implemented(tmp_path):
+    with pytest.raises(NotYetImplemented):
+        read_svg(_svg_file(tmp_path, _SVG_PATH_SMOOTH_CUBIC))
+
+
+def test_path_smooth_quadratic_raises_not_yet_implemented(tmp_path):
+    with pytest.raises(NotYetImplemented):
+        read_svg(_svg_file(tmp_path, _SVG_PATH_SMOOTH_QUADRATIC))
+
+
+def test_path_missing_id_raises(tmp_path):
+    with pytest.raises(Unrecoverable):
+        read_svg(_svg_file(tmp_path, _SVG_PATH_MISSING_ID))
+
+
+def test_path_empty_d_raises(tmp_path):
+    with pytest.raises(Unrecoverable):
+        read_svg(_svg_file(tmp_path, _SVG_PATH_EMPTY_D))
+
+
+def test_path_duplicate_id_raises(tmp_path):
+    with pytest.raises(Unrecoverable):
+        read_svg(_svg_file(tmp_path, _SVG_PATH_DUPLICATE_ID))
+
+
+def test_path_coordinate_dtype(tmp_path):
+    result = read_svg(_svg_file(tmp_path, _SVG_PATH_POLYLINE))
+    for pts in result.values():
+        for x, y in pts:
+            assert type(x) is Real
+            assert type(y) is Real
+
+
+def test_mixed_line_polyline_path(tmp_path):
+    result = read_svg(_svg_file(tmp_path, _SVG_MIXED_ELEMENTS))
+    assert set(result.keys()) == {'ln', 'pl', 'pa'}
+    assert len(result['ln']) == 2
+    assert len(result['pl']) == 3
+    assert len(result['pa']) == 2
+
 
 
 def test_export_polylines_coordinate_values(tmp_path):

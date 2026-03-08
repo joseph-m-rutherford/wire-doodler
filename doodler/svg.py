@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 # Copyright (c) 2023, Joseph M. Rutherford
 
+import re
 import xml.etree.ElementTree as ET
 
 import numpy as np
 
 from .common import Real
-from .errors import Unrecoverable
+from .errors import NotYetImplemented, Unrecoverable
 from .r3 import R3Axes, R3Vector, r3vector_copy, axes3d_copy
 
 
@@ -16,6 +17,119 @@ def _local_tag(element: ET.Element) -> str:
     if tag.startswith('{'):
         return tag[tag.index('}') + 1:]
     return tag
+
+
+_PATH_TOKEN_RE = re.compile(
+    r'([MmLlHhVvZzAaQqTtCcSs])'
+    r'|([+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)'
+)
+_CURVE_COMMAND_RE = re.compile(r'[AaQqTtCcSs]')
+
+
+def _parse_path_d(d_str: str, element_id: str) -> list[tuple[Real, Real]]:
+    """Parse an SVG path d attribute into a list of (x, y) pairs.
+
+    Raises NotYetImplemented if the path contains arc (A/a), quadratic
+    bezier (Q/q, T/t), or cubic bezier (C/c, S/s) commands.
+    Supports M, m, L, l, H, h, V, v, Z, z.
+    """
+    if _CURVE_COMMAND_RE.search(d_str):
+        raise NotYetImplemented(
+            f'Path id={element_id!r} contains unsupported curve commands'
+        )
+
+    tokens = []
+    for m in _PATH_TOKEN_RE.finditer(d_str):
+        if m.group(1):
+            tokens.append(m.group(1))
+        else:
+            tokens.append(m.group(2))
+
+    points: list[tuple[Real, Real]] = []
+    current_x = Real(0)
+    current_y = Real(0)
+    start_x = Real(0)
+    start_y = Real(0)
+    i = 0
+    current_cmd: str | None = None
+
+    while i < len(tokens):
+        token = tokens[i]
+        if isinstance(token, str) and token.isalpha():
+            current_cmd = token
+            i += 1
+            if current_cmd in ('Z', 'z'):
+                current_x = start_x
+                current_y = start_y
+                points.append((current_x, current_y))
+                continue
+
+        if current_cmd is None:
+            raise Unrecoverable(
+                f'Path id={element_id!r} has coordinate data before any command'
+            )
+
+        if current_cmd in ('M', 'm'):
+            try:
+                x = Real(tokens[i])
+                y = Real(tokens[i + 1])
+            except (IndexError, ValueError, TypeError) as exc:
+                raise Unrecoverable(exc)
+            i += 2
+            if current_cmd == 'm':
+                current_x += x
+                current_y += y
+            else:
+                current_x = x
+                current_y = y
+            start_x, start_y = current_x, current_y
+            points.append((current_x, current_y))
+            # Subsequent coordinate pairs after M/m are treated as implicit L/l
+            current_cmd = 'L' if current_cmd == 'M' else 'l'
+        elif current_cmd in ('L', 'l'):
+            try:
+                x = Real(tokens[i])
+                y = Real(tokens[i + 1])
+            except (IndexError, ValueError, TypeError) as exc:
+                raise Unrecoverable(exc)
+            i += 2
+            if current_cmd == 'l':
+                current_x += x
+                current_y += y
+            else:
+                current_x = x
+                current_y = y
+            points.append((current_x, current_y))
+        elif current_cmd in ('H', 'h'):
+            try:
+                x = Real(tokens[i])
+            except (IndexError, ValueError, TypeError) as exc:
+                raise Unrecoverable(exc)
+            i += 1
+            if current_cmd == 'h':
+                current_x += x
+            else:
+                current_x = x
+            points.append((current_x, current_y))
+        elif current_cmd in ('V', 'v'):
+            try:
+                y = Real(tokens[i])
+            except (IndexError, ValueError, TypeError) as exc:
+                raise Unrecoverable(exc)
+            i += 1
+            if current_cmd == 'v':
+                current_y += y
+            else:
+                current_y = y
+            points.append((current_x, current_y))
+        else:
+            raise Unrecoverable(
+                f'Path id={element_id!r} contains unknown command {current_cmd!r}'
+            )
+
+    if not points:
+        raise Unrecoverable(f'Path id={element_id!r} has no drawable points')
+    return points
 
 
 def _parse_polyline_points(points_str: str, element_id: str) -> list[tuple[Real, Real]]:
@@ -64,7 +178,7 @@ def read_svg(path: str) -> dict[str, list[tuple[Real, Real]]]:
 
     for element in tree.iter():
         local = _local_tag(element)
-        if local not in ('line', 'polyline'):
+        if local not in ('line', 'polyline', 'path'):
             continue
 
         element_id = element.get('id')
@@ -91,13 +205,20 @@ def read_svg(path: str) -> dict[str, list[tuple[Real, Real]]]:
             except (ValueError, TypeError) as exc:
                 raise Unrecoverable(exc)
             result[element_id] = [(x1, y1), (x2, y2)]
-        else:  # polyline
+        elif local == 'polyline':
             points_attr = element.get('points', '').strip()
             if not points_attr:
                 raise Unrecoverable(
                     f'Polyline id={element_id!r} has empty points attribute'
                 )
             result[element_id] = _parse_polyline_points(points_attr, element_id)
+        else:  # path
+            d_attr = element.get('d', '').strip()
+            if not d_attr:
+                raise Unrecoverable(
+                    f'Path id={element_id!r} has empty d attribute'
+                )
+            result[element_id] = _parse_path_d(d_attr, element_id)
 
     return result
 
