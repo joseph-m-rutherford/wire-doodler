@@ -19,6 +19,7 @@
   - raise `Recoverable` for retriable conditions (e.g., absent cached rule files),
   - raise `Unrecoverable` for invalid state,
   - use `NeverImplement` for immutable setters/abstract behavior.
+- Member variables use a leading `_` (e.g., `self._points`); expose them via a `@property` getter (no leading `_`) and a setter that raises `NeverImplement` to enforce immutability.
 - Many properties are intentionally immutable and use setter methods that always raise; do not add mutability unless tests demand it.
 - Coordinate guardrails are strict: geometry methods must reject out-of-range tangent coordinates via `InvalidTangentCoordinates`.
 
