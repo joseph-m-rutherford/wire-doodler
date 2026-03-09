@@ -7,7 +7,7 @@ import xml.etree.ElementTree as ET
 import numpy as np
 
 from .common import Real
-from .errors import NotYetImplemented, Unrecoverable
+from .errors import NeverImplement, NotYetImplemented, Unrecoverable
 from .r3 import R3Axes, R3Vector, r3vector_copy, axes3d_copy
 
 
@@ -132,6 +132,41 @@ def _parse_path_d(d_str: str, element_id: str) -> list[tuple[Real, Real]]:
     return points
 
 
+class WireSegment2D:
+    """A single SVG path element parsed into 2-D geometry and a description.
+
+    Attributes
+    ----------
+    points:
+        Ordered list of (x, y) coordinate pairs parsed from the path ``d``
+        attribute.
+    description:
+        Non-empty string taken from the required ``<desc>`` child element.
+    """
+
+    def __init__(self, points: list[tuple[Real, Real]], description: str) -> None:
+        self._points = points
+        self._description = description
+
+    @property
+    def points(self) -> list[tuple[Real, Real]]:
+        '''Ordered list of (x, y) coordinate pairs parsed from the path d attribute.'''
+        return self._points
+
+    @points.setter
+    def points(self, value) -> None:
+        raise NeverImplement('WireSegment2D points are immutable')
+
+    @property
+    def description(self) -> str:
+        '''Non-empty string taken from the required <desc> child element.'''
+        return self._description
+
+    @description.setter
+    def description(self, value) -> None:
+        raise NeverImplement('WireSegment2D description is immutable')
+
+
 def _parse_polyline_points(points_str: str, element_id: str) -> list[tuple[Real, Real]]:
     """Parse a SVG points attribute string into a list of (x, y) pairs."""
     tokens = points_str.replace(',', ' ').split()
@@ -145,11 +180,14 @@ def _parse_polyline_points(points_str: str, element_id: str) -> list[tuple[Real,
         raise Unrecoverable(exc)
 
 
-def read_svg(path: str) -> dict[str, list[tuple[Real, Real]]]:
+def read_svg(path: str) -> dict[str, list[tuple[Real, Real]] | WireSegment2D]:
     """Read an SVG file and return wire segments keyed by element id.
 
     Every <line> and <polyline> element must carry an id attribute.
     Lines produce two-point lists; polylines produce one point per vertex.
+    Every <path> element must carry an id attribute and a <desc> child element
+    containing a non-empty description string; paths produce WireSegment2D
+    instances.
 
     Parameters
     ----------
@@ -158,14 +196,19 @@ def read_svg(path: str) -> dict[str, list[tuple[Real, Real]]]:
 
     Returns
     -------
-    dict mapping each element id to a list of (x, y) coordinate pairs.
+    dict mapping each element id to a list of (x, y) coordinate pairs (for
+    ``<line>`` and ``<polyline>`` elements) or a :class:`WireSegment2D` (for
+    ``<path>`` elements).
 
     Raises
     ------
     Unrecoverable:
-        If the file cannot be read or parsed, any line/polyline lacks an id
-        attribute, any line is missing a coordinate attribute, ids are
-        duplicated, or coordinate data is malformed.
+        If the file cannot be read or parsed, any element lacks an id
+        attribute, a line is missing a coordinate attribute, ids are
+        duplicated, coordinate data is malformed, or a path is missing its
+        required non-empty <desc> child.
+    NotYetImplemented:
+        If a path contains arc, quadratic bezier, or cubic bezier commands.
     """
     try:
         tree = ET.parse(path)
@@ -218,7 +261,18 @@ def read_svg(path: str) -> dict[str, list[tuple[Real, Real]]]:
                 raise Unrecoverable(
                     f'Path id={element_id!r} has empty d attribute'
                 )
-            result[element_id] = _parse_path_d(d_attr, element_id)
+            desc_el = next((c for c in element if _local_tag(c) == 'desc'), None)
+            if desc_el is None:
+                raise Unrecoverable(
+                    f'Path id={element_id!r} is missing required <desc> child element'
+                )
+            desc_text = (desc_el.text or '').strip()
+            if not desc_text:
+                raise Unrecoverable(
+                    f'Path id={element_id!r} <desc> element must contain non-empty text'
+                )
+            points = _parse_path_d(d_attr, element_id)
+            result[element_id] = WireSegment2D(points, desc_text)
 
     return result
 
