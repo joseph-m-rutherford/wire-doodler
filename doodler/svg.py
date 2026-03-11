@@ -180,14 +180,12 @@ def _parse_polyline_points(points_str: str, element_id: str) -> list[tuple[Real,
         raise Unrecoverable(exc)
 
 
-def read_svg(path: str) -> dict[str, list[tuple[Real, Real]] | WireSegment2D]:
+def read_svg(path: str) -> dict[str, WireSegment2D]:
     """Read an SVG file and return wire segments keyed by element id.
 
-    Every <line> and <polyline> element must carry an id attribute.
-    Lines produce two-point lists; polylines produce one point per vertex.
-    Every <path> element must carry an id attribute and a <desc> child element
-    containing a non-empty description string; paths produce WireSegment2D
-    instances.
+    Every <line>, <polyline>, and <path> element must carry an id attribute
+    and a <desc> child element containing a non-empty description string;
+    all produce :class:`WireSegment2D` instances.
 
     Parameters
     ----------
@@ -196,17 +194,15 @@ def read_svg(path: str) -> dict[str, list[tuple[Real, Real]] | WireSegment2D]:
 
     Returns
     -------
-    dict mapping each element id to a list of (x, y) coordinate pairs (for
-    ``<line>`` and ``<polyline>`` elements) or a :class:`WireSegment2D` (for
-    ``<path>`` elements).
+    dict mapping each element id to a :class:`WireSegment2D` instance.
 
     Raises
     ------
     Unrecoverable:
         If the file cannot be read or parsed, any element lacks an id
         attribute, a line is missing a coordinate attribute, ids are
-        duplicated, coordinate data is malformed, or a path is missing its
-        required non-empty <desc> child.
+        duplicated, coordinate data is malformed, or any element is missing
+        its required non-empty <desc> child.
     NotYetImplemented:
         If a path contains arc, quadratic bezier, or cubic bezier commands.
     """
@@ -247,14 +243,35 @@ def read_svg(path: str) -> dict[str, list[tuple[Real, Real]] | WireSegment2D]:
                 y2 = Real(element.get('y2'))
             except (ValueError, TypeError) as exc:
                 raise Unrecoverable(exc)
-            result[element_id] = [(x1, y1), (x2, y2)]
+            desc_el = next((c for c in element if _local_tag(c) == 'desc'), None)
+            if desc_el is None:
+                raise Unrecoverable(
+                    f'Line id={element_id!r} is missing required <desc> child element'
+                )
+            desc_text = (desc_el.text or '').strip()
+            if not desc_text:
+                raise Unrecoverable(
+                    f'Line id={element_id!r} <desc> element must contain non-empty text'
+                )
+            result[element_id] = WireSegment2D([(x1, y1), (x2, y2)], desc_text)
         elif local == 'polyline':
             points_attr = element.get('points', '').strip()
             if not points_attr:
                 raise Unrecoverable(
                     f'Polyline id={element_id!r} has empty points attribute'
                 )
-            result[element_id] = _parse_polyline_points(points_attr, element_id)
+            points = _parse_polyline_points(points_attr, element_id)
+            desc_el = next((c for c in element if _local_tag(c) == 'desc'), None)
+            if desc_el is None:
+                raise Unrecoverable(
+                    f'Polyline id={element_id!r} is missing required <desc> child element'
+                )
+            desc_text = (desc_el.text or '').strip()
+            if not desc_text:
+                raise Unrecoverable(
+                    f'Polyline id={element_id!r} <desc> element must contain non-empty text'
+                )
+            result[element_id] = WireSegment2D(points, desc_text)
         else:  # path
             d_attr = element.get('d', '').strip()
             if not d_attr:
@@ -311,9 +328,10 @@ def as_xyz(
     v_hat = frame[1]
 
     result: dict[str, list[R3Vector]] = {}
-    for name, points in segments.items():
+    for name, segment in segments.items():
         xyz_points: list[R3Vector] = []
-        for u, v in points:
+        pts = segment.points if isinstance(segment, WireSegment2D) else segment
+        for u, v in pts:
             point = np.array(u * u_hat + v * v_hat, dtype=Real) + offset
             xyz_points.append(point)
         result[name] = xyz_points

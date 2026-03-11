@@ -17,21 +17,21 @@ from doodler.r3 import TOLERANCE
 _SVG_NAMESPACED = '''\
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="100" height="100">
-  <line id="seg1" x1="0" y1="0" x2="10" y2="20"/>
-  <polyline id="tri" points="0,0 5,10 10,0"/>
+  <line id="seg1" x1="0" y1="0" x2="10" y2="20"><desc>segment one</desc></line>
+  <polyline id="tri" points="0,0 5,10 10,0"><desc>triangle</desc></polyline>
 </svg>'''
 
 _SVG_NO_NAMESPACE = '''\
 <?xml version="1.0" encoding="UTF-8"?>
 <svg width="100" height="100">
-  <line id="seg1" x1="1.5" y1="2.5" x2="3.5" y2="4.5"/>
-  <polyline id="path1" points="0 0 1 1 2 0"/>
+  <line id="seg1" x1="1.5" y1="2.5" x2="3.5" y2="4.5"><desc>segment one</desc></line>
+  <polyline id="path1" points="0 0 1 1 2 0"><desc>path one</desc></polyline>
 </svg>'''
 
 _SVG_COMMAS_AND_SPACES = '''\
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg">
-  <polyline id="mixed" points="0,0, 3,4, 6,8"/>
+  <polyline id="mixed" points="0,0, 3,4, 6,8"><desc>mixed separators</desc></polyline>
 </svg>'''
 
 _SVG_MISSING_ID = '''\
@@ -43,8 +43,8 @@ _SVG_MISSING_ID = '''\
 _SVG_DUPLICATE_ID = '''\
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg">
-  <line id="same" x1="0" y1="0" x2="1" y2="1"/>
-  <polyline id="same" points="0,0 1,1"/>
+  <line id="same" x1="0" y1="0" x2="1" y2="1"><desc>first</desc></line>
+  <polyline id="same" points="0,0 1,1"><desc>second</desc></polyline>
 </svg>'''
 
 _SVG_EMPTY_POINTS = '''\
@@ -65,6 +65,30 @@ _SVG_DEFAULT_COORDS = '''\
   <line id="origin"/>
 </svg>'''
 
+_SVG_LINE_MISSING_DESC = '''\
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg">
+  <line id="seg1" x1="0" y1="0" x2="1" y2="1"/>
+</svg>'''
+
+_SVG_POLYLINE_MISSING_DESC = '''\
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg">
+  <polyline id="poly1" points="0,0 1,1 2,0"/>
+</svg>'''
+
+_SVG_LINE_EMPTY_DESC = '''\
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg">
+  <line id="seg1" x1="0" y1="0" x2="1" y2="1"><desc></desc></line>
+</svg>'''
+
+_SVG_POLYLINE_EMPTY_DESC = '''\
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg">
+  <polyline id="poly1" points="0,0 1,1 2,0"><desc></desc></polyline>
+</svg>'''
+
 
 # ---------------------------------------------------------------------------
 # Helper
@@ -83,7 +107,7 @@ def _svg_file(tmp_path, content, name='test.svg'):
 def test_line_two_points(tmp_path):
     result = read_svg(_svg_file(tmp_path, _SVG_NAMESPACED))
     assert 'seg1' in result
-    pts = result['seg1']
+    pts = result['seg1'].points
     assert len(pts) == 2
     assert pts[0] == (Real(0), Real(0))
     assert pts[1] == (Real(10), Real(20))
@@ -92,7 +116,7 @@ def test_line_two_points(tmp_path):
 def test_polyline_three_points(tmp_path):
     result = read_svg(_svg_file(tmp_path, _SVG_NAMESPACED))
     assert 'tri' in result
-    pts = result['tri']
+    pts = result['tri'].points
     assert len(pts) == 3
     assert pts[0] == (Real(0), Real(0))
     assert pts[1] == (Real(5), Real(10))
@@ -107,19 +131,19 @@ def test_both_elements_keyed(tmp_path):
 def test_no_namespace(tmp_path):
     result = read_svg(_svg_file(tmp_path, _SVG_NO_NAMESPACE))
     assert set(result.keys()) == {'seg1', 'path1'}
-    assert len(result['path1']) == 3
+    assert len(result['path1'].points) == 3
 
 
 def test_no_namespace_line_coords(tmp_path):
     result = read_svg(_svg_file(tmp_path, _SVG_NO_NAMESPACE))
-    pts = result['seg1']
+    pts = result['seg1'].points
     assert pts[0] == (Real('1.5'), Real('2.5'))
     assert pts[1] == (Real('3.5'), Real('4.5'))
 
 
 def test_polyline_mixed_separators(tmp_path):
     result = read_svg(_svg_file(tmp_path, _SVG_COMMAS_AND_SPACES))
-    pts = result['mixed']
+    pts = result['mixed'].points
     assert len(pts) == 3
     assert pts[1] == (Real(3), Real(4))
 
@@ -154,10 +178,40 @@ def test_line_missing_coords_raises(tmp_path):
         read_svg(_svg_file(tmp_path, _SVG_DEFAULT_COORDS))
 
 
+def test_line_missing_desc_raises(tmp_path):
+    with pytest.raises(Unrecoverable):
+        read_svg(_svg_file(tmp_path, _SVG_LINE_MISSING_DESC))
+
+
+def test_polyline_missing_desc_raises(tmp_path):
+    with pytest.raises(Unrecoverable):
+        read_svg(_svg_file(tmp_path, _SVG_POLYLINE_MISSING_DESC))
+
+
+def test_line_empty_desc_raises(tmp_path):
+    with pytest.raises(Unrecoverable):
+        read_svg(_svg_file(tmp_path, _SVG_LINE_EMPTY_DESC))
+
+
+def test_polyline_empty_desc_raises(tmp_path):
+    with pytest.raises(Unrecoverable):
+        read_svg(_svg_file(tmp_path, _SVG_POLYLINE_EMPTY_DESC))
+
+
+def test_line_description_stored(tmp_path):
+    result = read_svg(_svg_file(tmp_path, _SVG_NAMESPACED))
+    assert result['seg1'].description == 'segment one'
+
+
+def test_polyline_description_stored(tmp_path):
+    result = read_svg(_svg_file(tmp_path, _SVG_NAMESPACED))
+    assert result['tri'].description == 'triangle'
+
+
 def test_coordinate_dtype(tmp_path):
     result = read_svg(_svg_file(tmp_path, _SVG_NAMESPACED))
-    for pts in result.values():
-        for x, y in pts:
+    for segment in result.values():
+        for x, y in segment.points:
             assert type(x) is Real
             assert type(y) is Real
 
@@ -214,7 +268,7 @@ def test_as_xyz_rotated_frame(tmp_path):
     svg = '''\
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg">
-  <line id="r" x1="1" y1="2" x2="3" y2="4"/>
+  <line id="r" x1="1" y1="2" x2="3" y2="4"><desc>rotated line</desc></line>
 </svg>'''
     segs = read_svg(_svg_file(tmp_path, svg))
     result = as_xyz(segs, frame, _ZERO_OFFSET)
@@ -477,8 +531,8 @@ _SVG_PATH_DUPLICATE_ID = '''\
 _SVG_MIXED_ELEMENTS = '''\
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg">
-  <line id="ln" x1="0" y1="0" x2="1" y2="1"/>
-  <polyline id="pl" points="0,0 2,0 2,2"/>
+  <line id="ln" x1="0" y1="0" x2="1" y2="1"><desc>mixed line</desc></line>
+  <polyline id="pl" points="0,0 2,0 2,2"><desc>mixed polyline</desc></polyline>
   <path id="pa" d="M 3 0 L 5 5">
     <desc>mixed path element</desc>
   </path>
@@ -598,8 +652,8 @@ def test_path_coordinate_dtype(tmp_path):
 def test_mixed_line_polyline_path(tmp_path):
     result = read_svg(_svg_file(tmp_path, _SVG_MIXED_ELEMENTS))
     assert set(result.keys()) == {'ln', 'pl', 'pa'}
-    assert len(result['ln']) == 2
-    assert len(result['pl']) == 3
+    assert len(result['ln'].points) == 2
+    assert len(result['pl'].points) == 3
     assert len(result['pa'].points) == 2
 
 
