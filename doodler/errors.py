@@ -39,7 +39,7 @@ class NeverImplement(Unrecoverable):
     def __init__(self,error):
         '''Parent class retains the error message string'''
         if type(error) is str:
-            super.__init__(self,error)
+            super().__init__(error)
         else:
             raise Unrecoverable('NeverImplement requires a string argument')
 

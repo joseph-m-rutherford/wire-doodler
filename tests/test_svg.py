@@ -231,9 +231,9 @@ _IDENTITY_FRAME = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]], dtype=Real)
 _ZERO_OFFSET = np.array([0, 0, 0], dtype=Real)
 
 
-def test_as_xyz_identity_frame_line(tmp_path):
+def test_as_xyz_identity_frame_line():
     """With identity frame and zero offset, x,y map directly to x,y with z=0."""
-    segs = read_svg(_svg_file(tmp_path, _SVG_NAMESPACED))
+    segs = {'seg1': WireSegment2D([(Real(0), Real(0)), (Real(10), Real(20))], 'segment one')}
     result = as_xyz(segs, _IDENTITY_FRAME, _ZERO_OFFSET)
     pts = result['seg1']
     assert len(pts) == 2
@@ -241,8 +241,8 @@ def test_as_xyz_identity_frame_line(tmp_path):
     assert r3vector_equality(pts[1], np.array([10, 20, 0], dtype=Real), TOLERANCE)
 
 
-def test_as_xyz_identity_frame_polyline(tmp_path):
-    segs = read_svg(_svg_file(tmp_path, _SVG_NAMESPACED))
+def test_as_xyz_identity_frame_polyline():
+    segs = {'tri': WireSegment2D([(Real(0), Real(0)), (Real(5), Real(10)), (Real(10), Real(0))], 'triangle')}
     result = as_xyz(segs, _IDENTITY_FRAME, _ZERO_OFFSET)
     pts = result['tri']
     assert len(pts) == 3
@@ -251,9 +251,9 @@ def test_as_xyz_identity_frame_polyline(tmp_path):
     assert r3vector_equality(pts[2], np.array([10, 0, 0], dtype=Real), TOLERANCE)
 
 
-def test_as_xyz_with_offset(tmp_path):
+def test_as_xyz_with_offset():
     """A non-zero offset shifts every point."""
-    segs = read_svg(_svg_file(tmp_path, _SVG_NAMESPACED))
+    segs = {'seg1': WireSegment2D([(Real(0), Real(0)), (Real(10), Real(20))], 'segment one')}
     offset = np.array([1, 2, 3], dtype=Real)
     result = as_xyz(segs, _IDENTITY_FRAME, offset)
     pts = result['seg1']
@@ -261,16 +261,11 @@ def test_as_xyz_with_offset(tmp_path):
     assert r3vector_equality(pts[1], np.array([11, 22, 3], dtype=Real), TOLERANCE)
 
 
-def test_as_xyz_rotated_frame(tmp_path):
+def test_as_xyz_rotated_frame():
     """u=y, v=z, w=x: SVG (u,v) becomes global (0, u, v)."""
     # u=y-axis, v=z-axis, w=x-axis  (right-handed: y cross z = x)
     frame = np.array([[0, 1, 0], [0, 0, 1], [1, 0, 0]], dtype=Real)
-    svg = '''\
-<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg">
-  <line id="r" x1="1" y1="2" x2="3" y2="4"><desc>rotated line</desc></line>
-</svg>'''
-    segs = read_svg(_svg_file(tmp_path, svg))
+    segs = {'r': WireSegment2D([(Real(1), Real(2)), (Real(3), Real(4))], 'rotated line')}
     result = as_xyz(segs, frame, _ZERO_OFFSET)
     pts = result['r']
     # point (u=1, v=2) -> 1*y_hat + 2*z_hat = (0, 1, 2)
@@ -279,8 +274,11 @@ def test_as_xyz_rotated_frame(tmp_path):
     assert r3vector_equality(pts[1], np.array([0, 3, 4], dtype=Real), TOLERANCE)
 
 
-def test_as_xyz_returns_real_dtype(tmp_path):
-    segs = read_svg(_svg_file(tmp_path, _SVG_NAMESPACED))
+def test_as_xyz_returns_real_dtype():
+    segs = {
+        'seg1': WireSegment2D([(Real(0), Real(0)), (Real(10), Real(20))], 'segment one'),
+        'tri': WireSegment2D([(Real(0), Real(0)), (Real(5), Real(10)), (Real(10), Real(0))], 'triangle'),
+    }
     result = as_xyz(segs, _IDENTITY_FRAME, _ZERO_OFFSET)
     for pts in result.values():
         for pt in pts:

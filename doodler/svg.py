@@ -7,7 +7,8 @@ import xml.etree.ElementTree as ET
 import numpy as np
 
 from .common import Real
-from .errors import NeverImplement, NotYetImplemented, Unrecoverable
+from .errors import NotYetImplemented, Unrecoverable
+from .geometry.wire_segments import WireSegment2D
 from .r3 import R3Axes, R3Vector, r3vector_copy, axes3d_copy
 
 
@@ -130,41 +131,6 @@ def _parse_path_d(d_str: str, element_id: str) -> list[tuple[Real, Real]]:
     if not points:
         raise Unrecoverable(f'Path id={element_id!r} has no drawable points')
     return points
-
-
-class WireSegment2D:
-    """A single SVG path element parsed into 2-D geometry and a description.
-
-    Attributes
-    ----------
-    points:
-        Ordered list of (x, y) coordinate pairs parsed from the path ``d``
-        attribute.
-    description:
-        Non-empty string taken from the required ``<desc>`` child element.
-    """
-
-    def __init__(self, points: list[tuple[Real, Real]], description: str) -> None:
-        self._points = points
-        self._description = description
-
-    @property
-    def points(self) -> list[tuple[Real, Real]]:
-        '''Ordered list of (x, y) coordinate pairs parsed from the path d attribute.'''
-        return self._points
-
-    @points.setter
-    def points(self, value) -> None:
-        raise NeverImplement('WireSegment2D points are immutable')
-
-    @property
-    def description(self) -> str:
-        '''Non-empty string taken from the required <desc> child element.'''
-        return self._description
-
-    @description.setter
-    def description(self, value) -> None:
-        raise NeverImplement('WireSegment2D description is immutable')
 
 
 def _parse_polyline_points(points_str: str, element_id: str) -> list[tuple[Real, Real]]:
@@ -295,7 +261,7 @@ def read_svg(path: str) -> dict[str, WireSegment2D]:
 
 
 def as_xyz(
-    segments: dict[str, list[tuple[Real, Real]]],
+    segments: dict[str, WireSegment2D],
     uvw: R3Axes,
     xyz_offset: R3Vector,
 ) -> dict[str, list[R3Vector]]:
@@ -307,8 +273,8 @@ def as_xyz(
     Parameters
     ----------
     segments:
-        Output of :func:`read_svg` — a dict mapping names to lists of
-        (u, v) coordinate pairs.
+        Output of :func:`read_svg` — a dict mapping names to
+        :class:`WireSegment2D` instances.
     uvw:
         A (3, 3) array whose rows are the orthonormal basis vectors
         u = uvw[0], v = uvw[1], w = uvw[2].  Validated via
@@ -330,8 +296,7 @@ def as_xyz(
     result: dict[str, list[R3Vector]] = {}
     for name, segment in segments.items():
         xyz_points: list[R3Vector] = []
-        pts = segment.points if isinstance(segment, WireSegment2D) else segment
-        for u, v in pts:
+        for u, v in segment.points:
             point = np.array(u * u_hat + v * v_hat, dtype=Real) + offset
             xyz_points.append(point)
         result[name] = xyz_points
