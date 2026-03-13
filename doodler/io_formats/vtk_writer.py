@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # Copyright (c) 2023, Joseph M. Rutherford
 
-from .common import Real
-from .errors import Unrecoverable
-from .r3 import R3Vector
+from ..common import Real
+from ..errors import Unrecoverable
+from ..r3 import R3Vector
 
 
 def export_polylines(segments: dict[str, list[R3Vector]], filename: str) -> None:

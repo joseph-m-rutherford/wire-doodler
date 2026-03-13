@@ -6,11 +6,11 @@ import xml.etree.ElementTree as ET
 
 import numpy as np
 
-from .common import Real
-from .errors import NotYetImplemented, Unrecoverable
-from .geometry.wire_segments import WireSegment2D, as_xyz
+from ..common import Real
+from ..errors import NotYetImplemented, Unrecoverable
+from ..geometry.wire_segments import WireSegment2D, as_xyz
 from .vtk_writer import export_polylines
-from .r3 import R3Axes, R3Vector, r3vector_copy, axes3d_copy
+from ..r3 import R3Axes, R3Vector, r3vector_copy, axes3d_copy
 
 
 def _local_tag(element: ET.Element) -> str:
@@ -280,5 +280,5 @@ def export_polylines(segments: dict[str, list[R3Vector]], filename: str) -> None
     Unrecoverable:
         If the output file cannot be written.
     """
-    # Delegated to doodler.vtk_writer.export_polylines
+    # Delegated to doodler.io_formats.vtk_writer.export_polylines
     return export_polylines(segments, filename)
