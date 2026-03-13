@@ -5,3 +5,4 @@ from .common import Shape3D, InvalidTangentCoordinates, TOLERANCE, valid_tangent
 from .cylinder import Cylinder
 from .clipped_sphere import ClippedSphere, InvalidClipPlane, LeftHanded, RightHanded
 from .sampler import Shape3DSampler
+from .wire_segments import WireSegment2D
