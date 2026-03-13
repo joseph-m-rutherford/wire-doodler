@@ -8,7 +8,7 @@ import numpy as np
 
 from .common import Real
 from .errors import NotYetImplemented, Unrecoverable
-from .geometry.wire_segments import WireSegment2D
+from .geometry.wire_segments import WireSegment2D, as_xyz
 from .r3 import R3Axes, R3Vector, r3vector_copy, axes3d_copy
 
 
@@ -260,47 +260,7 @@ def read_svg(path: str) -> dict[str, WireSegment2D]:
     return result
 
 
-def as_xyz(
-    segments: dict[str, WireSegment2D],
-    uvw: R3Axes,
-    xyz_offset: R3Vector,
-) -> dict[str, list[R3Vector]]:
-    """Convert 2-D SVG segments into 3-D global coordinates.
-
-    Each (u, v) point in *segments* is treated as a position in the plane
-    w=0 of the orthonormal frame *uvw*, then shifted by *xyz_offset*.
-
-    Parameters
-    ----------
-    segments:
-        Output of :func:`read_svg` — a dict mapping names to
-        :class:`WireSegment2D` instances.
-    uvw:
-        A (3, 3) array whose rows are the orthonormal basis vectors
-        u = uvw[0], v = uvw[1], w = uvw[2].  Validated via
-        :func:`axes3d_copy`.
-    xyz_offset:
-        A length-3 global offset added to every converted point.
-        Validated via :func:`r3vector_copy`.
-
-    Returns
-    -------
-    dict mapping each segment name to a list of length-3 ``numpy`` arrays
-    (dtype :data:`Real`) in global x, y, z coordinates.
-    """
-    frame = axes3d_copy(uvw)
-    offset = r3vector_copy(xyz_offset)
-    u_hat = frame[0]
-    v_hat = frame[1]
-
-    result: dict[str, list[R3Vector]] = {}
-    for name, segment in segments.items():
-        xyz_points: list[R3Vector] = []
-        for u, v in segment.points:
-            point = np.array(u * u_hat + v * v_hat, dtype=Real) + offset
-            xyz_points.append(point)
-        result[name] = xyz_points
-    return result
+# `as_xyz` is implemented in `doodler.geometry.wire_segments`.
 
 
 def export_polylines(segments: dict[str, list[R3Vector]], filename: str) -> None:
