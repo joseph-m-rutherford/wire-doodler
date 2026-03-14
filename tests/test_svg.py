@@ -5,7 +5,7 @@ import pytest
 
 import numpy as np
 
-from doodler import read_svg, as_xyz, export_polylines, Real, Unrecoverable, NotYetImplemented, WireSegment2D, R3Axes, R3Vector, r3vector_equality, real_equality
+from doodler import read_svg, Real, Unrecoverable, NotYetImplemented, WireSegment2D
 from doodler.r3 import TOLERANCE
 
 
