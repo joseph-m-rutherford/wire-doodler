@@ -180,7 +180,7 @@ def read_svg(path: str) -> dict[str, WireSegment2D]:
     except OSError as exc:
         raise Unrecoverable(exc)
 
-    result: dict[str, list[tuple[Real, Real]]] = {}
+    result: dict[str, WireSegment2D] = {}
 
     for element in tree.iter():
         local = _local_tag(element)

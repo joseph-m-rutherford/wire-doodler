@@ -9,25 +9,34 @@ import numpy as np
 
 
 class WireSegment2D:
-    """A single SVG path element parsed into 2-D geometry and a description.
+    """A single 2-D wire segment parsed from an SVG element and a description.
+
+    This is a lightweight container used by :func:`read_svg` to represent
+    individual wire-like segments in the SVG, regardless of which specific
+    element type produced them (e.g., ``<path>``, ``<line>``, ``<polyline>``).
 
     Attributes
     ----------
     points:
-        Ordered list of (x, y) coordinate pairs parsed from the path ``d``
-        attribute.
+        Ordered list of (x, y) coordinate pairs in the source SVG coordinate
+        system describing the 2-D wire geometry. These are typically extracted
+        from the element's geometry attributes (such as a path ``d`` attribute,
+        ``x1``/``y1``/``x2``/``y2`` on a line, or a polyline ``points`` list).
     description:
-        Non-empty string taken from the required ``<desc>`` child element.
+        Non-empty string taken from the required ``<desc>`` child element of
+        the source SVG element.
     """
 
     def __init__(self, points: list[tuple[Real, Real]], description: str) -> None:
-        self._points = points
+        # Store an internal immutable copy of the points to prevent external mutation.
+        self._points: tuple[tuple[Real, Real], ...] = tuple(points)
         self._description = description
 
     @property
     def points(self) -> list[tuple[Real, Real]]:
-        '''Ordered list of (x, y) coordinate pairs parsed from the path d attribute.'''
-        return self._points
+        '''Ordered list of (x, y) coordinate pairs describing the 2-D wire segment.'''
+        # Return a defensive copy so callers cannot mutate internal state.
+        return list(self._points)
 
     @points.setter
     def points(self, value) -> None:
