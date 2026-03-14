@@ -9,7 +9,6 @@ import numpy as np
 from ..common import Real
 from ..errors import NotYetImplemented, Unrecoverable
 from ..geometry.wire_segments import WireSegment2D, as_xyz
-from .vtk_writer import export_polylines
 from ..r3 import R3Axes, R3Vector, r3vector_copy, axes3d_copy
 
 
@@ -259,26 +258,3 @@ def read_svg(path: str) -> dict[str, WireSegment2D]:
             result[element_id] = WireSegment2D(points, desc_text)
 
     return result
-
-
-# `as_xyz` is implemented in `doodler.geometry.wire_segments`.
-
-
-def export_polylines(segments: dict[str, list[R3Vector]], filename: str) -> None:
-    """Write 3-D segment data to a legacy VTK ASCII file as LINES.
-
-    Parameters
-    ----------
-    segments:
-        Output of :func:`as_xyz` — a dict mapping names to lists of
-        length-3 numpy arrays in global x, y, z coordinates.
-    filename:
-        Destination file path.  Overwrites existing files.
-
-    Raises
-    ------
-    Unrecoverable:
-        If the output file cannot be written.
-    """
-    # Delegated to doodler.io_formats.vtk_writer.export_polylines
-    return export_polylines(segments, filename)
