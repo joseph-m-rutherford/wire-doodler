@@ -17,8 +17,8 @@ def _pt(x, y, z):
 
 
 # Two well-separated, non-intersecting polylines used as the "happy path".
-_POLY_A = [_pt(0, 0, 0), _pt(1, 0, 0), _pt(2, 0, 0)]
-_POLY_B = [_pt(0, 5, 0), _pt(1, 5, 0), _pt(2, 5, 0)]
+_POLY_A = [_pt(0, 0, 0), _pt(1, 0, 0), _pt(0, 1, 0)]
+_POLY_B = [_pt(0, 0, 5), _pt(1, 0, 5), _pt(2, 0, 5)]
 _H = Real(0.5)
 _TOL = Real(0.01)
 
@@ -161,4 +161,52 @@ def test_wire_mesh_3d_immutable_properties_raise():
         mesh.h = Real(1)
     with pytest.raises(NeverImplement):
         mesh.reltol = Real(1)
+    with pytest.raises(NeverImplement):
+        mesh.named_subsegment_counts = {}
+
+
+# ---------------------------------------------------------------------------
+# WireMesh3D — subsegment counts
+# ---------------------------------------------------------------------------
+
+def test_wire_mesh_3d_subsegment_counts_exact_multiple():
+    # Segment length 1.0, h=0.5 → ceil(1.0/0.5)=2 subsegments each (collinear points).
+    poly = [_pt(0, 0, 0), _pt(1, 0, 0), _pt(2, 0, 0)]
+    mesh = WireMesh3D({'p': poly}, _H, _TOL)
+    counts = mesh.named_subsegment_counts
+    assert counts['p'] == [2, 2]
+
+
+def test_wire_mesh_3d_subsegment_counts_non_multiple():
+    # Segment length 1.0, h=0.3 → ceil(1.0/0.3)=ceil(3.333)=4 subsegments.
+    poly = [_pt(0, 0, 0), _pt(1, 0, 0)]
+    mesh = WireMesh3D({'p': poly}, Real(0.3), _TOL)
+    counts = mesh.named_subsegment_counts
+    assert counts['p'] == [4]
+
+
+def test_wire_mesh_3d_subsegment_counts_h_larger_than_segment():
+    # h larger than segment length → count must be >= 1, not 0.
+    poly = [_pt(0, 0, 0), _pt(0.1, 0, 0)]
+    mesh = WireMesh3D({'short': poly}, Real(1.0), _TOL)
+    counts = mesh.named_subsegment_counts
+    assert counts['short'] == [1]
+
+
+def test_wire_mesh_3d_subsegment_counts_multiple_polylines():
+    # Two polylines; verify counts are stored independently.
+    # _POLY_A: seg0 length=1.0→2, seg1 length=sqrt(2)→ceil(sqrt(2)/0.5)=3
+    # _POLY_B: both segments length=1.0→2
+    mesh = WireMesh3D({'a': _POLY_A, 'b': _POLY_B}, _H, _TOL)
+    counts = mesh.named_subsegment_counts
+    assert counts['a'] == [2, 3]
+    assert counts['b'] == [2, 2]
+
+
+def test_wire_mesh_3d_subsegment_counts_all_at_least_one():
+    # Construct a polyline where every segment has length well below h.
+    pts = [_pt(i * 0.01, 0, 0) for i in range(5)]  # 4 segments each 0.01 long, h=1.0
+    mesh = WireMesh3D({'tiny': pts}, Real(1.0), _TOL)
+    for count in mesh.named_subsegment_counts['tiny']:
+        assert count >= 1
 

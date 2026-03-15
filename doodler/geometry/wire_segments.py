@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Copyright (c) 2023, Joseph M. Rutherford
 
-from ..common import Real
+from ..common import Integer, Real
 from ..errors import NeverImplement
 from ..errors import NotYetImplemented
 from ..errors import Unrecoverable
@@ -178,6 +178,17 @@ class WireMesh3D:
         self._h = h
         self._reltol = reltol
 
+        # Compute the number of even subsegments for each polyline segment.
+        # Every segment must have at least 1 subsegment.
+        named_subsegment_counts: dict[str, list[Integer]] = {}
+        for name, pts in self._named_polylines.items():
+            counts: list[Integer] = []
+            for k in range(len(pts) - 1):
+                length = Real(np.linalg.norm(pts[k + 1] - pts[k]))
+                counts.append(Integer(max(1, int(np.ceil(length / h)))))
+            named_subsegment_counts[name] = counts
+        self._named_subsegment_counts = named_subsegment_counts
+
     @property
     def named_polylines(self) -> dict[str, list[R3Vector]]:
         '''Named polylines in global x, y, z coordinates.'''
@@ -204,6 +215,15 @@ class WireMesh3D:
     @reltol.setter
     def reltol(self, value) -> None:
         raise NeverImplement('WireMesh3D reltol is immutable')
+
+    @property
+    def named_subsegment_counts(self) -> dict[str, list[Integer]]:
+        '''Subsegment counts per polyline segment (number of even subdivisions of each segment).'''
+        return {name: list(counts) for name, counts in self._named_subsegment_counts.items()}
+
+    @named_subsegment_counts.setter
+    def named_subsegment_counts(self, value) -> None:
+        raise NeverImplement('WireMesh3D named_subsegment_counts are immutable')
 
 
 def as_xyz(
