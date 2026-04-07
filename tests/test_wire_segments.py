@@ -210,3 +210,68 @@ def test_wire_mesh_3d_subsegment_counts_all_at_least_one():
     for count in mesh.named_subsegment_counts['tiny']:
         assert count >= 1
 
+
+# ---------------------------------------------------------------------------
+# WireMesh3D — subsegment index
+# ---------------------------------------------------------------------------
+
+def test_subsegment_index_single_polyline_single_segment():
+    # One segment [0,0,0]->[1,0,0] with h=0.5 gives 2 subsegments.
+    poly = [_pt(0, 0, 0), _pt(1, 0, 0)]
+    mesh = WireMesh3D({'a': poly}, Real(0.5), _TOL)
+    idx = mesh.subsegment_index
+    assert len(idx) == 2
+    assert idx[0] == ('a', 0, 0)
+    assert idx[1] == ('a', 0, 1)
+
+
+def test_subsegment_index_single_polyline_two_segments():
+    # Two-segment polyline each length 1, h=0.5 -> 2 subsegments per segment = 4 total.
+    poly = [_pt(0, 0, 0), _pt(1, 0, 0), _pt(2, 0, 0)]
+    mesh = WireMesh3D({'p': poly}, Real(0.5), _TOL)
+    idx = mesh.subsegment_index
+    assert len(idx) == 4
+    assert idx[0] == ('p', 0, 0)
+    assert idx[1] == ('p', 0, 1)
+    assert idx[2] == ('p', 1, 0)
+    assert idx[3] == ('p', 1, 1)
+
+
+def test_subsegment_index_two_polylines_lexicographic_order():
+    # Names 'b' and 'a': 'a' must come first in the index regardless of insertion order.
+    poly_a = [_pt(0, 0, 0), _pt(1, 0, 0)]        # 1 segment, h=1.0 -> 1 subsegment
+    poly_b = [_pt(0, 0, 5), _pt(1, 0, 5), _pt(2, 0, 5)]  # 2 segments -> 2 subsegments
+    mesh = WireMesh3D({'b': poly_b, 'a': poly_a}, Real(1.0), _TOL)
+    idx = mesh.subsegment_index
+    # 'a' first: 1 subsegment; 'b' second: 2 subsegments -> 3 total
+    assert len(idx) == 3
+    assert idx[0] == ('a', 0, 0)
+    assert idx[1] == ('b', 0, 0)
+    assert idx[2] == ('b', 1, 0)
+
+
+def test_subsegment_index_length_matches_total_subsegment_count():
+    # Total index length must equal sum of all subsegment counts.
+    mesh = WireMesh3D({'a': _POLY_A, 'b': _POLY_B}, _H, _TOL)
+    total = sum(
+        count
+        for counts in mesh.named_subsegment_counts.values()
+        for count in counts
+    )
+    assert len(mesh.subsegment_index) == total
+
+
+def test_subsegment_index_immutable():
+    mesh = WireMesh3D({'a': _POLY_A}, _H, _TOL)
+    with pytest.raises(NeverImplement):
+        mesh.subsegment_index = []
+
+
+def test_subsegment_index_returns_copy():
+    # Mutating the returned list must not affect the stored index.
+    mesh = WireMesh3D({'a': _POLY_A}, _H, _TOL)
+    idx = mesh.subsegment_index
+    original_len = len(idx)
+    idx.clear()
+    assert len(mesh.subsegment_index) == original_len
+

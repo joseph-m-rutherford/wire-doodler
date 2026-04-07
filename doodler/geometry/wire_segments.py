@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Copyright (c) 2023, Joseph M. Rutherford
 
-from ..common import Integer, Real
+from ..common import Index, Integer, Real
 from ..errors import NeverImplement
 from ..errors import NotYetImplemented
 from ..errors import Unrecoverable
@@ -189,6 +189,15 @@ class WireMesh3D:
             named_subsegment_counts[name] = counts
         self._named_subsegment_counts = named_subsegment_counts
 
+        # Build flat subsegment index: sorted by name, then segment, then subsegment.
+        # Each entry maps mesh_index -> (wire_name, segment_index, subsegment_index).
+        subsegment_index: list[tuple[str, Index, Index]] = []
+        for name in sorted(self._named_subsegment_counts.keys()):
+            for seg_idx, count in enumerate(self._named_subsegment_counts[name]):
+                for sub_idx in range(count):
+                    subsegment_index.append((name, Index(seg_idx), Index(sub_idx)))
+        self._subsegment_index = subsegment_index
+
     @property
     def named_polylines(self) -> dict[str, list[R3Vector]]:
         '''Named polylines in global x, y, z coordinates.'''
@@ -224,6 +233,20 @@ class WireMesh3D:
     @named_subsegment_counts.setter
     def named_subsegment_counts(self, value) -> None:
         raise NeverImplement('WireMesh3D named_subsegment_counts are immutable')
+
+    @property
+    def subsegment_index(self) -> list[tuple[str, Index, Index]]:
+        '''Flat list mapping each mesh index to (wire_name, segment_index, subsegment_index).
+
+        Names are visited in lexicographical order; within each named polyline the
+        segments are visited in order and each segment's subsegments are visited
+        in order, so the list position is the global mesh index.
+        '''
+        return list(self._subsegment_index)
+
+    @subsegment_index.setter
+    def subsegment_index(self, value) -> None:
+        raise NeverImplement('WireMesh3D subsegment_index is immutable')
 
 
 def as_xyz(
