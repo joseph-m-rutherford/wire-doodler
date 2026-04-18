@@ -103,25 +103,52 @@ def test_wire_mesh_3d_intra_nearby_interior_points_raises():
 # WireMesh3D — inter-polyline: shared endpoint vertices
 # ---------------------------------------------------------------------------
 
-def test_wire_mesh_3d_inter_shared_start_start_raises():
+def test_wire_mesh_3d_inter_shared_start_start_supported():
     poly_a = [_pt(0, 0, 0), _pt(1, 0, 0)]
     poly_b = [_pt(0, 0, 0), _pt(0, 1, 0)]  # same start point
-    with pytest.raises(NotYetImplemented):
-        WireMesh3D({'a': poly_a, 'b': poly_b}, _H, _TOL)
+    mesh = WireMesh3D({'a': poly_a, 'b': poly_b}, _H, _TOL)
+    assert set(mesh.named_polylines.keys()) == {'a', 'b'}
+    pairs = mesh.mesh_functions.function_subsegment_pairs
+    shared = np.array([Real(0), Real(0), Real(0)])
+    assert any(
+        np.allclose(mesh.subsegment_endpoints(i)[0], shared, atol=float(_TOL))
+        or np.allclose(mesh.subsegment_endpoints(i)[1], shared, atol=float(_TOL))
+        or np.allclose(mesh.subsegment_endpoints(j)[0], shared, atol=float(_TOL))
+        or np.allclose(mesh.subsegment_endpoints(j)[1], shared, atol=float(_TOL))
+        for i, j in pairs
+    )
 
 
-def test_wire_mesh_3d_inter_shared_end_end_raises():
+def test_wire_mesh_3d_inter_shared_end_end_supported():
     poly_a = [_pt(0, 0, 0), _pt(1, 0, 0)]
     poly_b = [_pt(0, 1, 0), _pt(1, 0, 0)]  # same end point
-    with pytest.raises(NotYetImplemented):
-        WireMesh3D({'a': poly_a, 'b': poly_b}, _H, _TOL)
+    mesh = WireMesh3D({'a': poly_a, 'b': poly_b}, _H, _TOL)
+    assert set(mesh.named_polylines.keys()) == {'a', 'b'}
+    pairs = mesh.mesh_functions.function_subsegment_pairs
+    shared = np.array([Real(1), Real(0), Real(0)])
+    assert any(
+        np.allclose(mesh.subsegment_endpoints(i)[0], shared, atol=float(_TOL))
+        or np.allclose(mesh.subsegment_endpoints(i)[1], shared, atol=float(_TOL))
+        or np.allclose(mesh.subsegment_endpoints(j)[0], shared, atol=float(_TOL))
+        or np.allclose(mesh.subsegment_endpoints(j)[1], shared, atol=float(_TOL))
+        for i, j in pairs
+    )
 
 
-def test_wire_mesh_3d_inter_shared_start_end_raises():
+def test_wire_mesh_3d_inter_shared_start_end_supported():
     poly_a = [_pt(1, 0, 0), _pt(2, 0, 0)]
     poly_b = [_pt(0, 0, 0), _pt(1, 0, 0)]  # end of b == start of a
-    with pytest.raises(NotYetImplemented):
-        WireMesh3D({'a': poly_a, 'b': poly_b}, _H, _TOL)
+    mesh = WireMesh3D({'a': poly_a, 'b': poly_b}, _H, _TOL)
+    assert set(mesh.named_polylines.keys()) == {'a', 'b'}
+    pairs = mesh.mesh_functions.function_subsegment_pairs
+    shared = np.array([Real(1), Real(0), Real(0)])
+    assert any(
+        np.allclose(mesh.subsegment_endpoints(i)[0], shared, atol=float(_TOL))
+        or np.allclose(mesh.subsegment_endpoints(i)[1], shared, atol=float(_TOL))
+        or np.allclose(mesh.subsegment_endpoints(j)[0], shared, atol=float(_TOL))
+        or np.allclose(mesh.subsegment_endpoints(j)[1], shared, atol=float(_TOL))
+        for i, j in pairs
+    )
 
 
 # ---------------------------------------------------------------------------
