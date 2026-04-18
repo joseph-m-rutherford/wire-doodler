@@ -47,6 +47,24 @@ def _segment_segment_closest_points(p0, p1, q0, q1):
     return (closest1, closest2)
 
 
+def _is_shared_endpoint_intersection(
+    p0: R3Vector,
+    p1: R3Vector,
+    q0: R3Vector,
+    q1: R3Vector,
+    c1: R3Vector,
+    c2: R3Vector,
+    reltol: Real,
+) -> bool:
+    """Return True when segment intersection is exactly at one endpoint of each segment."""
+    if not r3vector_equality(c1, c2, reltol):
+        return False
+
+    p_at_endpoint = r3vector_equality(c1, p0, reltol) or r3vector_equality(c1, p1, reltol)
+    q_at_endpoint = r3vector_equality(c2, q0, reltol) or r3vector_equality(c2, q1, reltol)
+    return p_at_endpoint and q_at_endpoint
+
+
 class WireSegment2D:
     """A single 2-D wire segment parsed from an SVG element and a description.
 
@@ -89,6 +107,75 @@ class WireSegment2D:
     @description.setter
     def description(self, value) -> None:
         raise NeverImplement('WireSegment2D description is immutable')
+
+
+class MeshFunctions:
+    """Immutable mapping from function index to subsegment pairs.
+
+    Each function is represented by a unique unordered pair of subsegments
+    that share exactly one vertex.
+    """
+
+    def __init__(self, mesh: "WireMesh3D") -> None:
+        reltol = mesh.reltol
+        n_subsegments = len(mesh.subsegment_index)
+
+        endpoints: list[tuple[R3Vector, R3Vector]] = [
+            mesh.subsegment_endpoints(Index(i)) for i in range(n_subsegments)
+        ]
+
+        pairs: list[tuple[Index, Index]] = []
+        for i in range(n_subsegments):
+            a0, a1 = endpoints[i]
+            for j in range(i + 1, n_subsegments):
+                b0, b1 = endpoints[j]
+                shared_count = 0
+                if r3vector_equality(a0, b0, reltol):
+                    shared_count += 1
+                if r3vector_equality(a0, b1, reltol):
+                    shared_count += 1
+                if r3vector_equality(a1, b0, reltol):
+                    shared_count += 1
+                if r3vector_equality(a1, b1, reltol):
+                    shared_count += 1
+
+                if shared_count == 1:
+                    pairs.append((Index(i), Index(j)))
+
+        self._function_subsegment_pairs: tuple[tuple[Index, Index], ...] = tuple(pairs)
+
+    @property
+    def function_subsegment_pairs(self) -> list[tuple[Index, Index]]:
+        '''List indexed by function index: (subsegment_i, subsegment_j).'''
+        return list(self._function_subsegment_pairs)
+
+    @function_subsegment_pairs.setter
+    def function_subsegment_pairs(self, value) -> None:
+        raise NeverImplement('MeshFunctions function_subsegment_pairs are immutable')
+
+    @property
+    def function_map(self) -> dict[Index, tuple[Index, Index]]:
+        '''Dict mapping function index -> (subsegment_i, subsegment_j).'''
+        return {
+            Index(i): pair
+            for i, pair in enumerate(self._function_subsegment_pairs)
+        }
+
+    @function_map.setter
+    def function_map(self, value) -> None:
+        raise NeverImplement('MeshFunctions function_map is immutable')
+
+    def pair(self, function_index: Index) -> tuple[Index, Index]:
+        idx = int(function_index)
+        if idx < 0 or idx >= len(self._function_subsegment_pairs):
+            raise Unrecoverable(
+                ''.join([
+                    'MeshFunctions: function index ', str(idx),
+                    ' is out of range for ', str(len(self._function_subsegment_pairs)),
+                    ' functions',
+                ])
+            )
+        return self._function_subsegment_pairs[idx]
 
 
 class WireMesh3D:
@@ -144,28 +231,30 @@ class WireMesh3D:
         poly_items = list(copied.items())
         for i in range(len(poly_items)):
             name_a, pts_a = poly_items[i]
-            ends_a = (pts_a[0], pts_a[-1])
             for j in range(i + 1, len(poly_items)):
                 name_b, pts_b = poly_items[j]
-                ends_b = (pts_b[0], pts_b[-1])
-                # 1. Endpoint-endpoint collision → shared vertices not yet supported.
-                for ea in ends_a:
-                    for eb in ends_b:
-                        if r3vector_equality(ea, eb, reltol):
-                            raise NotYetImplemented(
-                                ''.join([
-                                    'WireMesh3D: shared vertices are not yet supported ',
-                                    '(polylines "', name_a, '" and "', name_b, '")',
-                                ])
-                            )
-                # 2. Segment-segment intersection → intersecting segments not yet supported.
+                # Segment-segment intersections are only allowed at shared endpoints.
                 for ia in range(len(pts_a) - 1):
                     for ib in range(len(pts_b) - 1):
+                        p0 = pts_a[ia]
+                        p1 = pts_a[ia + 1]
+                        q0 = pts_b[ib]
+                        q1 = pts_b[ib + 1]
                         c1, c2 = _segment_segment_closest_points(
-                            pts_a[ia], pts_a[ia + 1],
-                            pts_b[ib], pts_b[ib + 1],
+                            p0,
+                            p1,
+                            q0,
+                            q1,
                         )
-                        if r3vector_equality(c1, c2, reltol):
+                        if r3vector_equality(c1, c2, reltol) and not _is_shared_endpoint_intersection(
+                            p0,
+                            p1,
+                            q0,
+                            q1,
+                            c1,
+                            c2,
+                            reltol,
+                        ):
                             raise NotYetImplemented(
                                 ''.join([
                                     'WireMesh3D: intersecting segments are not yet supported ',
@@ -197,6 +286,7 @@ class WireMesh3D:
                 for sub_idx in range(count):
                     subsegment_index.append((name, Index(seg_idx), Index(sub_idx)))
         self._subsegment_index = subsegment_index
+        self._mesh_functions = MeshFunctions(self)
 
     @property
     def named_polylines(self) -> dict[str, list[R3Vector]]:
@@ -247,6 +337,42 @@ class WireMesh3D:
     @subsegment_index.setter
     def subsegment_index(self, value) -> None:
         raise NeverImplement('WireMesh3D subsegment_index is immutable')
+
+    def subsegment_endpoints(self, mesh_index: Index) -> tuple[R3Vector, R3Vector]:
+        '''Endpoints of a flat-indexed subsegment.'''
+        idx = int(mesh_index)
+        if idx < 0 or idx >= len(self._subsegment_index):
+            raise Unrecoverable(
+                ''.join([
+                    'WireMesh3D: mesh index ', str(idx),
+                    ' is out of range for ',
+                    str(len(self._subsegment_index)), ' subsegments',
+                ])
+            )
+
+        name, seg_idx, sub_idx = self._subsegment_index[idx]
+        seg_i = int(seg_idx)
+        sub_i = int(sub_idx)
+
+        p0 = self._named_polylines[name][seg_i]
+        p1 = self._named_polylines[name][seg_i + 1]
+        count = int(self._named_subsegment_counts[name][seg_i])
+
+        alpha0 = Real(sub_i) / Real(count)
+        alpha1 = Real(sub_i + 1) / Real(count)
+
+        start = np.array(p0 + alpha0 * (p1 - p0), dtype=Real)
+        end = np.array(p0 + alpha1 * (p1 - p0), dtype=Real)
+        return (start, end)
+
+    @property
+    def mesh_functions(self) -> MeshFunctions:
+        '''Function-index mapping for this mesh.'''
+        return self._mesh_functions
+
+    @mesh_functions.setter
+    def mesh_functions(self, value) -> None:
+        raise NeverImplement('WireMesh3D mesh_functions are immutable')
 
 
 def as_xyz(
