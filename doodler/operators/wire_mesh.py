@@ -11,6 +11,78 @@ from ..operators.mesh_functions import MeshFunctions
 from ..r3 import R3Vector, r3vector_copy, r3vector_equality, TOLERANCE
 
 
+class PointRegistry:
+    """Fast-lookup registry mapping 3-D points to unique integer indices.
+
+    Uses vectorized numpy operations to find existing matches within a
+    relative tolerance (via the same metric as :func:`r3vector_equality`).
+    If no match is found, the point is appended and the new index returned.
+    """
+
+    def __init__(self, reltol: Real) -> None:
+        reltol = Real(reltol)
+        if reltol <= Real(0):
+            raise Unrecoverable('PointRegistry: reltol must be positive')
+        self._reltol = reltol
+        self._points: list[R3Vector] = []
+
+    @property
+    def reltol(self) -> Real:
+        '''Relative tolerance for point equality.'''
+        return self._reltol
+
+    @reltol.setter
+    def reltol(self, value) -> None:
+        raise NeverImplement('PointRegistry reltol is immutable')
+
+    @property
+    def count(self) -> int:
+        '''Number of unique points in the registry.'''
+        return len(self._points)
+
+    @property
+    def points(self) -> list[R3Vector]:
+        '''Copy of all registered points.'''
+        return [r3vector_copy(p) for p in self._points]
+
+    @points.setter
+    def points(self, value) -> None:
+        raise NeverImplement('PointRegistry points are immutable')
+
+    def point(self, index: Index) -> R3Vector:
+        '''Return a copy of the point at *index*.'''
+        idx = int(index)
+        if idx < 0 or idx >= len(self._points):
+            raise Unrecoverable(
+                ''.join([
+                    'PointRegistry: index ', str(idx),
+                    ' is out of range for ', str(len(self._points)), ' points',
+                ])
+            )
+        return r3vector_copy(self._points[idx])
+
+    def get_or_insert(self, point: R3Vector) -> Index:
+        '''Return the index of *point*, inserting it first if no match exists.'''
+        point = r3vector_copy(point)
+        if self._points:
+            pts = np.array(self._points)                    # (n, 3)
+            diffs = pts - point[np.newaxis, :]              # (n, 3)
+            diff_sq = np.sum(diffs * diffs, axis=1)         # (n,)
+            pt_sq = np.sum(pts * pts, axis=1)               # (n,)
+            query_sq = float(np.dot(point, point))
+            max_sq = np.maximum(pt_sq, query_sq)            # (n,)
+            tol_sq = float(self._reltol * self._reltol)
+            near_origin = max_sq < tol_sq
+            relatively_equal = diff_sq < (max_sq * tol_sq)
+            matches = near_origin | relatively_equal
+            indices = np.nonzero(matches)[0]
+            if len(indices) > 0:
+                return Index(int(indices[0]))
+        idx = Index(len(self._points))
+        self._points.append(point)
+        return idx
+
+
 def _segment_segment_closest_points(p0, p1, q0, q1):
     """Return the closest point pair (c1, c2) between 3-D segments p0-p1 and q0-q1."""
     d1 = p1 - p0
@@ -175,6 +247,17 @@ class WireMesh3D:
                 for sub_idx in range(count):
                     subsegment_index.append((name, Index(seg_idx), Index(sub_idx)))
         self._subsegment_index = subsegment_index
+
+        # Build point registry and subsegment point pairs.
+        self._point_registry = PointRegistry(reltol)
+        subsegment_point_pairs: list[tuple[Index, Index]] = []
+        for mesh_idx in range(len(self._subsegment_index)):
+            start, end = self.subsegment_endpoints(Index(mesh_idx))
+            start_idx = self._point_registry.get_or_insert(start)
+            end_idx = self._point_registry.get_or_insert(end)
+            subsegment_point_pairs.append((start_idx, end_idx))
+        self._subsegment_point_pairs = subsegment_point_pairs
+
         self._mesh_functions = MeshFunctions(self)
 
     @property
@@ -258,6 +341,37 @@ class WireMesh3D:
         return (start, end)
 
     @property
+    def vertex_count(self) -> int:
+        '''Number of unique vertices in the mesh.'''
+        return self._point_registry.count
+
+    @vertex_count.setter
+    def vertex_count(self, value) -> None:
+        raise NeverImplement('WireMesh3D vertex_count is immutable')
+
+    def vertex_xyz(self, index: Index) -> R3Vector:
+        '''Return a copy of the 3-D position of vertex *index*.'''
+        return self._point_registry.point(index)
+
+    @property
+    def point_registry(self) -> PointRegistry:
+        '''Point registry containing unique 3-D points of this mesh.'''
+        return self._point_registry
+
+    @point_registry.setter
+    def point_registry(self, value) -> None:
+        raise NeverImplement('WireMesh3D point_registry is immutable')
+
+    @property
+    def subsegment_point_pairs(self) -> list[tuple[Index, Index]]:
+        '''Subsegment connectivity as pairs of point-registry indices.'''
+        return list(self._subsegment_point_pairs)
+
+    @subsegment_point_pairs.setter
+    def subsegment_point_pairs(self, value) -> None:
+        raise NeverImplement('WireMesh3D subsegment_point_pairs are immutable')
+
+    @property
     def mesh_functions(self) -> MeshFunctions:
         '''Function-index mapping for this mesh.'''
         return self._mesh_functions
@@ -265,3 +379,62 @@ class WireMesh3D:
     @mesh_functions.setter
     def mesh_functions(self, value) -> None:
         raise NeverImplement('WireMesh3D mesh_functions are immutable')
+
+    @classmethod
+    def _with_shared_registry(
+        cls,
+        source: "WireMesh3D",
+        registry: PointRegistry,
+        remap: list[Index],
+    ) -> "WireMesh3D":
+        '''Construct a new WireMesh3D that shares *registry* with remapped point indices.'''
+        instance = object.__new__(cls)
+        instance._named_polylines = {
+            name: [r3vector_copy(pt) for pt in pts]
+            for name, pts in source._named_polylines.items()
+        }
+        instance._h = source._h
+        instance._reltol = source._reltol
+        instance._named_subsegment_counts = {
+            name: list(counts) for name, counts in source._named_subsegment_counts.items()
+        }
+        instance._subsegment_index = list(source._subsegment_index)
+        instance._point_registry = registry
+        instance._subsegment_point_pairs = [
+            (remap[int(a)], remap[int(b)]) for a, b in source._subsegment_point_pairs
+        ]
+        instance._mesh_functions = MeshFunctions(instance)
+        return instance
+
+
+def unify_meshes(
+    a: WireMesh3D,
+    b: WireMesh3D,
+) -> tuple[WireMesh3D, WireMesh3D]:
+    """Unify two meshes so they share the same point registry.
+
+    Points that are equal (within the larger of the two meshes' tolerances)
+    receive the same index in the shared registry.
+
+    Returns
+    -------
+    unified_a : WireMesh3D
+        Copy of *a* whose point registry and subsegment point pairs reference
+        the shared registry.
+    unified_b : WireMesh3D
+        Copy of *b* likewise remapped into the same shared registry.
+    """
+    reltol = Real(max(float(a.reltol), float(b.reltol)))
+    shared = PointRegistry(reltol)
+
+    remap_a: list[Index] = []
+    for i in range(a.point_registry.count):
+        remap_a.append(shared.get_or_insert(a.point_registry.point(Index(i))))
+
+    remap_b: list[Index] = []
+    for i in range(b.point_registry.count):
+        remap_b.append(shared.get_or_insert(b.point_registry.point(Index(i))))
+
+    unified_a = WireMesh3D._with_shared_registry(a, shared, remap_a)
+    unified_b = WireMesh3D._with_shared_registry(b, shared, remap_b)
+    return unified_a, unified_b

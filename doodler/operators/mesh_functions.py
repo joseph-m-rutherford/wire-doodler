@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING
 from ..common import Index
 from ..errors import NeverImplement
 from ..errors import Unrecoverable
-from ..r3 import R3Vector, r3vector_equality
 
 if TYPE_CHECKING:
     from .wire_mesh import WireMesh3D
@@ -20,26 +19,22 @@ class MeshFunctions:
     """
 
     def __init__(self, mesh: "WireMesh3D") -> None:
-        reltol = mesh.reltol
-        n_subsegments = len(mesh.subsegment_index)
-
-        endpoints: list[tuple[R3Vector, R3Vector]] = [
-            mesh.subsegment_endpoints(Index(i)) for i in range(n_subsegments)
-        ]
+        point_pairs = mesh.subsegment_point_pairs
+        n_subsegments = len(point_pairs)
 
         pairs: list[tuple[Index, Index]] = []
         for i in range(n_subsegments):
-            a0, a1 = endpoints[i]
+            a0, a1 = point_pairs[i]
             for j in range(i + 1, n_subsegments):
-                b0, b1 = endpoints[j]
+                b0, b1 = point_pairs[j]
                 shared_count = 0
-                if r3vector_equality(a0, b0, reltol):
+                if a0 == b0:
                     shared_count += 1
-                if r3vector_equality(a0, b1, reltol):
+                if a0 == b1:
                     shared_count += 1
-                if r3vector_equality(a1, b0, reltol):
+                if a1 == b0:
                     shared_count += 1
-                if r3vector_equality(a1, b1, reltol):
+                if a1 == b1:
                     shared_count += 1
 
                 if shared_count == 1:

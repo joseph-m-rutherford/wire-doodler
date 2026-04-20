@@ -3,4 +3,4 @@
 
 from .fillers import FillChoice, WireMesh3DFill
 from .mesh_functions import MeshFunctions
-from .wire_mesh import WireMesh3D
+from .wire_mesh import PointRegistry, WireMesh3D, unify_meshes

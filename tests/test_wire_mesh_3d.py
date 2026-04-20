@@ -4,7 +4,7 @@
 import numpy as np
 import pytest
 
-from doodler import Real, WireMesh3D
+from doodler import Index, Real, PointRegistry, WireMesh3D, unify_meshes
 from doodler.errors import NeverImplement, NotYetImplemented, Unrecoverable
 
 
@@ -276,3 +276,255 @@ def test_subsegment_index_returns_copy():
     original_len = len(idx)
     idx.clear()
     assert len(mesh.subsegment_index) == original_len
+
+
+# ---------------------------------------------------------------------------
+# PointRegistry
+# ---------------------------------------------------------------------------
+
+def test_point_registry_insert_and_retrieve():
+    reg = PointRegistry(Real(0.01))
+    idx0 = reg.get_or_insert(_pt(0, 0, 0))
+    idx1 = reg.get_or_insert(_pt(1, 0, 0))
+    assert idx0 == 0
+    assert idx1 == 1
+    assert reg.count == 2
+
+
+def test_point_registry_deduplicates_within_tolerance():
+    reg = PointRegistry(Real(0.01))
+    idx0 = reg.get_or_insert(_pt(1, 0, 0))
+    idx1 = reg.get_or_insert(_pt(1.005, 0, 0))  # within 0.01 relative tolerance of (1,0,0)
+    assert idx0 == idx1
+    assert reg.count == 1
+
+
+def test_point_registry_distinguishes_beyond_tolerance():
+    reg = PointRegistry(Real(0.001))
+    idx0 = reg.get_or_insert(_pt(1, 0, 0))
+    idx1 = reg.get_or_insert(_pt(1.01, 0, 0))  # 1% away, well beyond 0.001
+    assert idx0 != idx1
+    assert reg.count == 2
+
+
+def test_point_registry_near_origin():
+    reg = PointRegistry(Real(0.01))
+    idx0 = reg.get_or_insert(_pt(0, 0, 0))
+    idx1 = reg.get_or_insert(_pt(1e-8, 1e-9, 0))  # both near origin
+    assert idx0 == idx1
+    assert reg.count == 1
+
+
+def test_point_registry_point_returns_copy():
+    reg = PointRegistry(Real(0.01))
+    reg.get_or_insert(_pt(1, 2, 3))
+    p = reg.point(Index(0))
+    p[:] = 0
+    assert np.allclose(reg.point(Index(0)), [1, 2, 3])
+
+
+def test_point_registry_point_out_of_range_raises():
+    reg = PointRegistry(Real(0.01))
+    with pytest.raises(Unrecoverable):
+        reg.point(Index(0))
+
+
+def test_point_registry_immutable_properties():
+    reg = PointRegistry(Real(0.01))
+    with pytest.raises(NeverImplement):
+        reg.reltol = Real(0.1)
+    with pytest.raises(NeverImplement):
+        reg.points = []
+
+
+def test_point_registry_negative_reltol_raises():
+    with pytest.raises(Unrecoverable):
+        PointRegistry(Real(-1))
+
+
+def test_point_registry_zero_reltol_raises():
+    with pytest.raises(Unrecoverable):
+        PointRegistry(Real(0))
+
+
+# ---------------------------------------------------------------------------
+# WireMesh3D — point registry and subsegment point pairs
+# ---------------------------------------------------------------------------
+
+def test_wire_mesh_3d_point_registry_exists():
+    poly = [_pt(0, 0, 0), _pt(1, 0, 0)]
+    mesh = WireMesh3D({'a': poly}, Real(1.0), _TOL)
+    assert mesh.point_registry.count == 2
+
+
+def test_wire_mesh_3d_point_pairs_length_matches_subsegments():
+    mesh = WireMesh3D({'a': _POLY_A, 'b': _POLY_B}, _H, _TOL)
+    assert len(mesh.subsegment_point_pairs) == len(mesh.subsegment_index)
+
+
+def test_wire_mesh_3d_point_pairs_match_endpoints():
+    poly = [_pt(0, 0, 0), _pt(1, 0, 0), _pt(2, 0, 0)]
+    mesh = WireMesh3D({'p': poly}, Real(1.0), _TOL)
+    reg = mesh.point_registry
+    for mesh_idx in range(len(mesh.subsegment_index)):
+        start, end = mesh.subsegment_endpoints(Index(mesh_idx))
+        pi, pj = mesh.subsegment_point_pairs[mesh_idx]
+        assert np.allclose(reg.point(pi), start, atol=float(_TOL))
+        assert np.allclose(reg.point(pj), end, atol=float(_TOL))
+
+
+def test_wire_mesh_3d_shared_endpoint_same_index():
+    # Two-segment polyline: the interior vertex should share one index.
+    poly = [_pt(0, 0, 0), _pt(1, 0, 0), _pt(2, 0, 0)]
+    mesh = WireMesh3D({'p': poly}, Real(1.0), _TOL)
+    pairs = mesh.subsegment_point_pairs
+    # subseg 0 end == subseg 1 start
+    assert pairs[0][1] == pairs[1][0]
+
+
+def test_wire_mesh_3d_inter_polyline_shared_point_same_index():
+    # Two polylines sharing an endpoint at (1,0,0).
+    poly_a = [_pt(0, 0, 0), _pt(1, 0, 0)]
+    poly_b = [_pt(1, 0, 0), _pt(2, 0, 0)]
+    mesh = WireMesh3D({'a': poly_a, 'b': poly_b}, Real(1.0), _TOL)
+    pairs = mesh.subsegment_point_pairs
+    # 'a' comes before 'b' in lexicographic order.
+    # subseg 0 (a): (0,0,0)->(1,0,0), subseg 1 (b): (1,0,0)->(2,0,0)
+    assert pairs[0][1] == pairs[1][0]
+
+
+def test_wire_mesh_3d_unique_point_count_with_subdivisions():
+    # Polyline with h=0.5: (0,0,0)->(1,0,0) becomes 2 subsegments.
+    # Unique points: (0,0,0), (0.5,0,0), (1,0,0) = 3
+    poly = [_pt(0, 0, 0), _pt(1, 0, 0)]
+    mesh = WireMesh3D({'a': poly}, Real(0.5), _TOL)
+    assert mesh.point_registry.count == 3
+
+
+def test_wire_mesh_3d_point_registry_immutable():
+    mesh = WireMesh3D({'a': _POLY_A}, _H, _TOL)
+    with pytest.raises(NeverImplement):
+        mesh.point_registry = None
+
+
+def test_wire_mesh_3d_subsegment_point_pairs_immutable():
+    mesh = WireMesh3D({'a': _POLY_A}, _H, _TOL)
+    with pytest.raises(NeverImplement):
+        mesh.subsegment_point_pairs = []
+
+
+def test_wire_mesh_3d_subsegment_point_pairs_returns_copy():
+    mesh = WireMesh3D({'a': _POLY_A}, _H, _TOL)
+    pairs = mesh.subsegment_point_pairs
+    original_len = len(pairs)
+    pairs.clear()
+    assert len(mesh.subsegment_point_pairs) == original_len
+
+
+# ---------------------------------------------------------------------------
+# WireMesh3D — vertex_xyz and vertex_count
+# ---------------------------------------------------------------------------
+
+def test_wire_mesh_3d_vertex_count():
+    poly = [_pt(0, 0, 0), _pt(1, 0, 0)]
+    mesh = WireMesh3D({'a': poly}, Real(1.0), _TOL)
+    assert mesh.vertex_count == 2
+
+
+def test_wire_mesh_3d_vertex_count_immutable():
+    mesh = WireMesh3D({'a': _POLY_A}, _H, _TOL)
+    with pytest.raises(NeverImplement):
+        mesh.vertex_count = 0
+
+
+def test_wire_mesh_3d_vertex_xyz_returns_copy():
+    poly = [_pt(1, 2, 3), _pt(4, 5, 6)]
+    mesh = WireMesh3D({'a': poly}, Real(10.0), _TOL)
+    v = mesh.vertex_xyz(Index(0))
+    v[:] = 0
+    assert np.allclose(mesh.vertex_xyz(Index(0)), [1, 2, 3])
+
+
+def test_wire_mesh_3d_vertex_xyz_matches_endpoints():
+    poly = [_pt(0, 0, 0), _pt(1, 0, 0), _pt(2, 0, 0)]
+    mesh = WireMesh3D({'p': poly}, Real(1.0), _TOL)
+    for mesh_idx in range(len(mesh.subsegment_index)):
+        start, end = mesh.subsegment_endpoints(Index(mesh_idx))
+        pi, pj = mesh.subsegment_point_pairs[mesh_idx]
+        assert np.allclose(mesh.vertex_xyz(pi), start, atol=float(_TOL))
+        assert np.allclose(mesh.vertex_xyz(pj), end, atol=float(_TOL))
+
+
+def test_wire_mesh_3d_vertex_xyz_out_of_range_raises():
+    poly = [_pt(0, 0, 0), _pt(1, 0, 0)]
+    mesh = WireMesh3D({'a': poly}, Real(1.0), _TOL)
+    with pytest.raises(Unrecoverable):
+        mesh.vertex_xyz(Index(999))
+
+
+# ---------------------------------------------------------------------------
+# unify_meshes
+# ---------------------------------------------------------------------------
+
+def test_unify_meshes_no_shared_points():
+    mesh_a = WireMesh3D({'a': [_pt(0, 0, 0), _pt(1, 0, 0)]}, Real(1.0), _TOL)
+    mesh_b = WireMesh3D({'b': [_pt(5, 0, 0), _pt(6, 0, 0)]}, Real(1.0), _TOL)
+    ua, ub = unify_meshes(mesh_a, mesh_b)
+    # Both unified meshes share the same registry with 4 distinct points.
+    assert ua.point_registry is ub.point_registry
+    assert ua.vertex_count == 4
+    assert ub.vertex_count == 4
+
+
+def test_unify_meshes_with_shared_endpoint():
+    mesh_a = WireMesh3D({'a': [_pt(0, 0, 0), _pt(1, 0, 0)]}, Real(1.0), _TOL)
+    mesh_b = WireMesh3D({'b': [_pt(1, 0, 0), _pt(2, 0, 0)]}, Real(1.0), _TOL)
+    ua, ub = unify_meshes(mesh_a, mesh_b)
+    # 3 unique points: (0,0,0), (1,0,0), (2,0,0)
+    assert ua.vertex_count == 3
+    # The shared point (1,0,0) maps to the same index.
+    # ua subseg 0: (0,0,0)->(1,0,0), ub subseg 0: (1,0,0)->(2,0,0)
+    assert ua.subsegment_point_pairs[0][1] == ub.subsegment_point_pairs[0][0]
+
+
+def test_unify_meshes_shared_registry_identity():
+    mesh_a = WireMesh3D({'a': _POLY_A}, _H, _TOL)
+    mesh_b = WireMesh3D({'b': _POLY_B}, _H, _TOL)
+    ua, ub = unify_meshes(mesh_a, mesh_b)
+    assert ua.point_registry is ub.point_registry
+
+
+def test_unify_meshes_preserves_subsegment_endpoints():
+    mesh_a = WireMesh3D({'a': [_pt(0, 0, 0), _pt(1, 0, 0)]}, Real(1.0), _TOL)
+    mesh_b = WireMesh3D({'b': [_pt(2, 0, 0), _pt(3, 0, 0)]}, Real(1.0), _TOL)
+    ua, ub = unify_meshes(mesh_a, mesh_b)
+    # Subsegment endpoints should still match the original polyline data.
+    for mesh_idx in range(len(ua.subsegment_index)):
+        orig_start, orig_end = mesh_a.subsegment_endpoints(Index(mesh_idx))
+        new_start, new_end = ua.subsegment_endpoints(Index(mesh_idx))
+        assert np.allclose(orig_start, new_start, atol=float(_TOL))
+        assert np.allclose(orig_end, new_end, atol=float(_TOL))
+
+
+def test_unify_meshes_preserves_mesh_functions():
+    # Two polylines sharing an endpoint -> mesh functions should still work after unification.
+    poly_a = [_pt(0, 0, 0), _pt(1, 0, 0)]
+    poly_b = [_pt(1, 0, 0), _pt(2, 0, 0)]
+    mesh_a = WireMesh3D({'a': poly_a, 'b': poly_b}, Real(1.0), _TOL)
+    mesh_b = WireMesh3D({'c': [_pt(5, 0, 0), _pt(6, 0, 0)]}, Real(1.0), _TOL)
+    ua, ub = unify_meshes(mesh_a, mesh_b)
+    # mesh_a has a function connecting the two subsegments; that should be preserved.
+    assert len(ua.mesh_functions.function_subsegment_pairs) == len(mesh_a.mesh_functions.function_subsegment_pairs)
+
+
+def test_unify_meshes_vertex_xyz_consistent():
+    mesh_a = WireMesh3D({'a': [_pt(0, 0, 0), _pt(1, 0, 0)]}, Real(1.0), _TOL)
+    mesh_b = WireMesh3D({'b': [_pt(1, 0, 0), _pt(2, 0, 0)]}, Real(1.0), _TOL)
+    ua, ub = unify_meshes(mesh_a, mesh_b)
+    # All point pair indices should resolve to valid coordinates.
+    for pi, pj in ua.subsegment_point_pairs:
+        ua.vertex_xyz(pi)
+        ua.vertex_xyz(pj)
+    for pi, pj in ub.subsegment_point_pairs:
+        ub.vertex_xyz(pi)
+        ub.vertex_xyz(pj)
