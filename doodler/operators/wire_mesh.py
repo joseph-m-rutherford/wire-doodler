@@ -8,23 +8,39 @@ from ..errors import NeverImplement
 from ..errors import NotYetImplemented
 from ..errors import Unrecoverable
 from ..operators.mesh_functions import MeshFunctions
-from ..r3 import R3Vector, r3vector_copy, r3vector_equality, TOLERANCE
+from ..r3 import R3Vector, r3vector_copy, r3vector_equality, Octree, TOLERANCE
 
 
 class PointRegistry:
     """Fast-lookup registry mapping 3-D points to unique integer indices.
 
-    Uses vectorized numpy operations to find existing matches within a
-    relative tolerance (via the same metric as :func:`r3vector_equality`).
-    If no match is found, the point is appended and the new index returned.
+    Uses an :class:`~doodler.r3.Octree` to partition points into cells so
+    that ``get_or_insert`` only checks candidates in the same octree cell
+    via :func:`~doodler.r3.r3vector_equality`.
     """
 
-    def __init__(self, reltol: Real) -> None:
+    def __init__(self, min_xyz: R3Vector, max_xyz: R3Vector, reltol: Real) -> None:
         reltol = Real(reltol)
         if reltol <= Real(0):
             raise Unrecoverable('PointRegistry: reltol must be positive')
         self._reltol = reltol
         self._points: list[R3Vector] = []
+
+        min_xyz = r3vector_copy(min_xyz)
+        max_xyz = r3vector_copy(max_xyz)
+
+        # Derive an absolute tolerance for the octree that approximates the
+        # relative-equality radius at the scale of the bounding box.
+        max_coord = Real(max(
+            float(np.max(np.abs(min_xyz))),
+            float(np.max(np.abs(max_xyz))),
+            1.0,
+        ))
+        abstol = Real(reltol * max_coord)
+
+        self._octree = Octree(min_xyz, max_xyz, abstol)
+        # Map Morton key -> list of point indices sharing that cell.
+        self._cell_indices: dict[int, list[int]] = {}
 
     @property
     def reltol(self) -> Real:
@@ -34,6 +50,24 @@ class PointRegistry:
     @reltol.setter
     def reltol(self, value) -> None:
         raise NeverImplement('PointRegistry reltol is immutable')
+
+    @property
+    def min_xyz(self) -> R3Vector:
+        '''Minimum corner of the octree bounding box.'''
+        return self._octree.min_xyz
+
+    @min_xyz.setter
+    def min_xyz(self, value) -> None:
+        raise NeverImplement('PointRegistry min_xyz is immutable')
+
+    @property
+    def max_xyz(self) -> R3Vector:
+        '''Maximum corner of the octree bounding box.'''
+        return self._octree.max_xyz
+
+    @max_xyz.setter
+    def max_xyz(self, value) -> None:
+        raise NeverImplement('PointRegistry max_xyz is immutable')
 
     @property
     def count(self) -> int:
@@ -64,23 +98,17 @@ class PointRegistry:
     def get_or_insert(self, point: R3Vector) -> Index:
         '''Return the index of *point*, inserting it first if no match exists.'''
         point = r3vector_copy(point)
-        if self._points:
-            pts = np.array(self._points)                    # (n, 3)
-            diffs = pts - point[np.newaxis, :]              # (n, 3)
-            diff_sq = np.sum(diffs * diffs, axis=1)         # (n,)
-            pt_sq = np.sum(pts * pts, axis=1)               # (n,)
-            query_sq = float(np.dot(point, point))
-            max_sq = np.maximum(pt_sq, query_sq)            # (n,)
-            tol_sq = float(self._reltol * self._reltol)
-            near_origin = max_sq < tol_sq
-            relatively_equal = diff_sq < (max_sq * tol_sq)
-            matches = near_origin | relatively_equal
-            indices = np.nonzero(matches)[0]
-            if len(indices) > 0:
-                return Index(int(indices[0]))
-        idx = Index(len(self._points))
+        key = self._octree.morton_key(point)
+        candidates = self._cell_indices.get(key, [])
+        for idx in candidates:
+            if r3vector_equality(self._points[idx], point, self._reltol):
+                return Index(idx)
+        new_idx = len(self._points)
         self._points.append(point)
-        return idx
+        if key not in self._cell_indices:
+            self._cell_indices[key] = []
+        self._cell_indices[key].append(new_idx)
+        return Index(new_idx)
 
 
 def _segment_segment_closest_points(p0, p1, q0, q1):
@@ -249,7 +277,21 @@ class WireMesh3D:
         self._subsegment_index = subsegment_index
 
         # Build point registry and subsegment point pairs.
-        self._point_registry = PointRegistry(reltol)
+        # Compute bounding box from polyline vertices (subsegment endpoints
+        # are interpolated within the convex hull of these vertices).
+        all_pts_flat = np.array([pt for pts in copied.values() for pt in pts])
+        bbox_min = r3vector_copy(np.min(all_pts_flat, axis=0))
+        bbox_max = r3vector_copy(np.max(all_pts_flat, axis=0))
+        # Pad to guarantee strict min < max and avoid boundary issues.
+        max_coord = Real(max(
+            float(np.max(np.abs(bbox_max))),
+            float(np.max(np.abs(bbox_min))),
+            1.0,
+        ))
+        pad = reltol * max_coord
+        bbox_min -= pad
+        bbox_max += pad
+        self._point_registry = PointRegistry(bbox_min, bbox_max, reltol)
         subsegment_point_pairs: list[tuple[Index, Index]] = []
         for mesh_idx in range(len(self._subsegment_index)):
             start, end = self.subsegment_endpoints(Index(mesh_idx))
@@ -425,7 +467,9 @@ def unify_meshes(
         Copy of *b* likewise remapped into the same shared registry.
     """
     reltol = Real(max(float(a.reltol), float(b.reltol)))
-    shared = PointRegistry(reltol)
+    shared_min = r3vector_copy(np.minimum(a.point_registry.min_xyz, b.point_registry.min_xyz))
+    shared_max = r3vector_copy(np.maximum(a.point_registry.max_xyz, b.point_registry.max_xyz))
+    shared = PointRegistry(shared_min, shared_max, reltol)
 
     remap_a: list[Index] = []
     for i in range(a.point_registry.count):

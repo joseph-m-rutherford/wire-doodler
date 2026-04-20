@@ -282,8 +282,13 @@ def test_subsegment_index_returns_copy():
 # PointRegistry
 # ---------------------------------------------------------------------------
 
+# Bounding box for standalone PointRegistry tests.
+_REG_MIN = _pt(-1, -1, -1)
+_REG_MAX = _pt(10, 10, 10)
+
+
 def test_point_registry_insert_and_retrieve():
-    reg = PointRegistry(Real(0.01))
+    reg = PointRegistry(_REG_MIN, _REG_MAX, Real(0.01))
     idx0 = reg.get_or_insert(_pt(0, 0, 0))
     idx1 = reg.get_or_insert(_pt(1, 0, 0))
     assert idx0 == 0
@@ -292,7 +297,7 @@ def test_point_registry_insert_and_retrieve():
 
 
 def test_point_registry_deduplicates_within_tolerance():
-    reg = PointRegistry(Real(0.01))
+    reg = PointRegistry(_REG_MIN, _REG_MAX, Real(0.01))
     idx0 = reg.get_or_insert(_pt(1, 0, 0))
     idx1 = reg.get_or_insert(_pt(1.005, 0, 0))  # within 0.01 relative tolerance of (1,0,0)
     assert idx0 == idx1
@@ -300,7 +305,7 @@ def test_point_registry_deduplicates_within_tolerance():
 
 
 def test_point_registry_distinguishes_beyond_tolerance():
-    reg = PointRegistry(Real(0.001))
+    reg = PointRegistry(_REG_MIN, _REG_MAX, Real(0.001))
     idx0 = reg.get_or_insert(_pt(1, 0, 0))
     idx1 = reg.get_or_insert(_pt(1.01, 0, 0))  # 1% away, well beyond 0.001
     assert idx0 != idx1
@@ -308,7 +313,7 @@ def test_point_registry_distinguishes_beyond_tolerance():
 
 
 def test_point_registry_near_origin():
-    reg = PointRegistry(Real(0.01))
+    reg = PointRegistry(_REG_MIN, _REG_MAX, Real(0.01))
     idx0 = reg.get_or_insert(_pt(0, 0, 0))
     idx1 = reg.get_or_insert(_pt(1e-8, 1e-9, 0))  # both near origin
     assert idx0 == idx1
@@ -316,7 +321,7 @@ def test_point_registry_near_origin():
 
 
 def test_point_registry_point_returns_copy():
-    reg = PointRegistry(Real(0.01))
+    reg = PointRegistry(_REG_MIN, _REG_MAX, Real(0.01))
     reg.get_or_insert(_pt(1, 2, 3))
     p = reg.point(Index(0))
     p[:] = 0
@@ -324,27 +329,31 @@ def test_point_registry_point_returns_copy():
 
 
 def test_point_registry_point_out_of_range_raises():
-    reg = PointRegistry(Real(0.01))
+    reg = PointRegistry(_REG_MIN, _REG_MAX, Real(0.01))
     with pytest.raises(Unrecoverable):
         reg.point(Index(0))
 
 
 def test_point_registry_immutable_properties():
-    reg = PointRegistry(Real(0.01))
+    reg = PointRegistry(_REG_MIN, _REG_MAX, Real(0.01))
     with pytest.raises(NeverImplement):
         reg.reltol = Real(0.1)
     with pytest.raises(NeverImplement):
         reg.points = []
+    with pytest.raises(NeverImplement):
+        reg.min_xyz = _REG_MIN
+    with pytest.raises(NeverImplement):
+        reg.max_xyz = _REG_MAX
 
 
 def test_point_registry_negative_reltol_raises():
     with pytest.raises(Unrecoverable):
-        PointRegistry(Real(-1))
+        PointRegistry(_REG_MIN, _REG_MAX, Real(-1))
 
 
 def test_point_registry_zero_reltol_raises():
     with pytest.raises(Unrecoverable):
-        PointRegistry(Real(0))
+        PointRegistry(_REG_MIN, _REG_MAX, Real(0))
 
 
 # ---------------------------------------------------------------------------
