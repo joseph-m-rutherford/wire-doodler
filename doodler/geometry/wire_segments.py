@@ -3,7 +3,6 @@
 
 from ..common import Real
 from ..errors import NeverImplement
-from ..operators.wire_mesh import WireMesh3D
 from ..r3 import R3Axes, R3Vector, r3vector_copy, axes3d_copy
 import numpy as np
 
