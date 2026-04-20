@@ -8,5 +8,5 @@ from .r3 import R3Axes, R3Vector, r3vector_copy, r3vector_equality, real_equalit
 from .io_formats.svg_reader import read_svg
 from .io_formats.vtk_writer import export_polylines
 from .geometry.wire_segments import as_xyz
-from .operators import FillChoice, WireMesh3DFill, MeshFunctions, WireMesh3D
+from .operators import FillChoice, WireMesh3DFill, MeshFunctions, PointRegistry, WireMesh3D, unify_meshes
 
