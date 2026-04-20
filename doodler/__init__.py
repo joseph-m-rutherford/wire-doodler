@@ -3,10 +3,10 @@
 
 from .common import Index, Integer, Real
 from .errors import Recoverable, Unrecoverable, NeverImplement, NotYetImplemented
-from .geometry import Shape3D, Cylinder, ClippedSphere, LeftHanded, RightHanded, Shape3DSampler, TOLERANCE, WireSegment2D, WireMesh3D
+from .geometry import Shape3D, Cylinder, ClippedSphere, LeftHanded, RightHanded, Shape3DSampler, TOLERANCE, WireSegment2D
 from .r3 import R3Axes, R3Vector, r3vector_copy, r3vector_equality, real_equality
 from .io_formats.svg_reader import read_svg
 from .io_formats.vtk_writer import export_polylines
 from .geometry.wire_segments import as_xyz
-from .fillers import FillChoice, WireMesh3DFill
-from .geometry.wire_segments import MeshFunctions
+from .operators import FillChoice, WireMesh3DFill, MeshFunctions, WireMesh3D
+

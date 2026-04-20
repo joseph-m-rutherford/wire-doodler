@@ -6,11 +6,11 @@ from enum import Enum
 
 import numpy as np
 
-from .common import Index, Real
-from .errors import NeverImplement
-from .errors import Unrecoverable
-from .geometry.wire_segments import WireMesh3D
-from .r3 import r3vector_equality
+from ..common import Index, Real
+from ..errors import NeverImplement
+from ..errors import Unrecoverable
+from .wire_mesh import WireMesh3D
+from ..r3 import r3vector_equality
 
 
 class FillChoice(str, Enum):
