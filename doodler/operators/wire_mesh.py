@@ -180,7 +180,10 @@ class WireMesh3D:
     @property
     def named_polylines(self) -> dict[str, list[R3Vector]]:
         '''Named polylines in global x, y, z coordinates.'''
-        return {name: list(pts) for name, pts in self._named_polylines.items()}
+        return {
+            name: [r3vector_copy(pt) for pt in pts]
+            for name, pts in self._named_polylines.items()
+        }
 
     @named_polylines.setter
     def named_polylines(self, value) -> None:
