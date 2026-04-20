@@ -156,7 +156,7 @@ class WireMesh3D:
         self._h = h
         self._reltol = reltol
 
-        # Compute the number of even subsegments for each polyline segment.
+        # Compute the number of uniform subsegments for each polyline segment.
         # Every segment must have at least 1 subsegment.
         named_subsegment_counts: dict[str, list[Integer]] = {}
         for name, pts in self._named_polylines.items():
@@ -209,7 +209,7 @@ class WireMesh3D:
 
     @property
     def named_subsegment_counts(self) -> dict[str, list[Integer]]:
-        '''Subsegment counts per polyline segment (number of even subdivisions of each segment).'''
+        '''Subsegment counts per polyline segment (number of uniform subdivisions of each segment).'''
         return {name: list(counts) for name, counts in self._named_subsegment_counts.items()}
 
     @named_subsegment_counts.setter
