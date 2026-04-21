@@ -20,26 +20,38 @@ class MeshFunctions:
 
     def __init__(self, mesh: "WireMesh3D") -> None:
         point_pairs = mesh.subsegment_point_pairs
-        n_subsegments = len(point_pairs)
 
-        pairs: list[tuple[Index, Index]] = []
-        for i in range(n_subsegments):
-            a0, a1 = point_pairs[i]
-            for j in range(i + 1, n_subsegments):
-                b0, b1 = point_pairs[j]
-                shared_count = 0
-                if a0 == b0:
-                    shared_count += 1
-                if a0 == b1:
-                    shared_count += 1
-                if a1 == b0:
-                    shared_count += 1
-                if a1 == b1:
-                    shared_count += 1
+        vertex_subsegments: dict[Index, list[Index]] = {}
+        for i, (a0, a1) in enumerate(point_pairs):
+            subsegment_index = Index(i)
+            vertex_subsegments.setdefault(a0, []).append(subsegment_index)
+            if a1 != a0:
+                vertex_subsegments.setdefault(a1, []).append(subsegment_index)
 
-                if shared_count == 1:
-                    pairs.append((Index(i), Index(j)))
+        pair_set: set[tuple[Index, Index]] = set()
+        for incident_subsegments in vertex_subsegments.values():
+            n_incident = len(incident_subsegments)
+            for i in range(n_incident):
+                subsegment_i = incident_subsegments[i]
+                a0, a1 = point_pairs[int(subsegment_i)]
+                for j in range(i + 1, n_incident):
+                    subsegment_j = incident_subsegments[j]
+                    b0, b1 = point_pairs[int(subsegment_j)]
 
+                    shared_count = 0
+                    if a0 == b0:
+                        shared_count += 1
+                    if a0 == b1:
+                        shared_count += 1
+                    if a1 == b0:
+                        shared_count += 1
+                    if a1 == b1:
+                        shared_count += 1
+
+                    if shared_count == 1:
+                        pair_set.add((subsegment_i, subsegment_j))
+
+        pairs = sorted(pair_set, key=lambda pair: (int(pair[0]), int(pair[1])))
         self._function_subsegment_pairs: tuple[tuple[Index, Index], ...] = tuple(pairs)
 
     @property
