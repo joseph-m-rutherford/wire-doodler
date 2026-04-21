@@ -334,6 +334,33 @@ def test_point_registry_point_out_of_range_raises():
         reg.point(Index(0))
 
 
+def test_point_registry_morton_keys_for_aabb_contains_point_cell_key():
+    reg = PointRegistry(_REG_MIN, _REG_MAX, Real(0.01))
+    p = _pt(1, 2, 3)
+    key = reg._octree.morton_key(p)
+    keys = reg.morton_keys_for_aabb(p, p)
+    assert keys is not None
+    assert key in keys
+
+
+def test_point_registry_morton_keys_for_aabb_disjoint_is_empty():
+    reg = PointRegistry(_REG_MIN, _REG_MAX, Real(0.01))
+    keys = reg.morton_keys_for_aabb(_pt(100, 100, 100), _pt(101, 101, 101))
+    assert keys == []
+
+
+def test_point_registry_morton_keys_for_aabb_max_cells_overflow_returns_none():
+    reg = PointRegistry(_REG_MIN, _REG_MAX, Real(0.01))
+    keys = reg.morton_keys_for_aabb(_REG_MIN, _REG_MAX, max_cells=1)
+    assert keys is None
+
+
+def test_point_registry_morton_keys_for_aabb_invalid_bounds_raises():
+    reg = PointRegistry(_REG_MIN, _REG_MAX, Real(0.01))
+    with pytest.raises(Unrecoverable):
+        reg.morton_keys_for_aabb(_pt(1, 1, 1), _pt(0, 0, 0))
+
+
 def test_point_registry_immutable_properties():
     reg = PointRegistry(_REG_MIN, _REG_MAX, Real(0.01))
     with pytest.raises(NeverImplement):
@@ -344,6 +371,8 @@ def test_point_registry_immutable_properties():
         reg.min_xyz = _REG_MIN
     with pytest.raises(NeverImplement):
         reg.max_xyz = _REG_MAX
+    with pytest.raises(NeverImplement):
+        reg.abstol = Real(0.1)
 
 
 def test_point_registry_negative_reltol_raises():
