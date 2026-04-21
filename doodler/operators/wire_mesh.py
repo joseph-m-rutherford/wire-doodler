@@ -29,14 +29,17 @@ class PointRegistry:
         min_xyz = r3vector_copy(min_xyz)
         max_xyz = r3vector_copy(max_xyz)
 
-        # Derive an absolute tolerance for the octree that approximates the
-        # relative-equality radius at the scale of the bounding box.
-        max_coord = Real(max(
-            float(np.max(np.abs(min_xyz))),
-            float(np.max(np.abs(max_xyz))),
+        # Derive an absolute tolerance for the octree from a bound on the
+        # largest point norm in the bounding box. This keeps the octree cell
+        # width consistent with r3vector_equality(), which scales tolerance
+        # by the Euclidean norm of the point rather than by its largest
+        # coordinate component.
+        max_point_norm = Real(max(
+            float(np.linalg.norm(min_xyz)),
+            float(np.linalg.norm(max_xyz)),
             1.0,
         ))
-        abstol = Real(reltol * max_coord)
+        abstol = Real(reltol * max_point_norm)
 
         self._octree = Octree(min_xyz, max_xyz, abstol)
         # Map Morton key -> list of point indices sharing that cell.
