@@ -78,6 +78,15 @@ class PointRegistry:
         return len(self._points)
 
     @property
+    def abstol(self) -> Real:
+        '''Absolute tolerance used by the underlying octree.'''
+        return self._octree.tolerance
+
+    @abstol.setter
+    def abstol(self, value) -> None:
+        raise NeverImplement('PointRegistry abstol is immutable')
+
+    @property
     def points(self) -> list[R3Vector]:
         '''Copy of all registered points.'''
         return [r3vector_copy(p) for p in self._points]
@@ -97,6 +106,53 @@ class PointRegistry:
                 ])
             )
         return r3vector_copy(self._points[idx])
+
+    def morton_keys_for_aabb(
+        self,
+        min_xyz: R3Vector,
+        max_xyz: R3Vector,
+        max_cells: int | None = None,
+    ) -> list[int] | None:
+        '''Return all Morton keys overlapped by an axis-aligned bounding box.
+
+        Returns ``None`` when the overlapped cell count exceeds *max_cells*.
+        '''
+        min_xyz = r3vector_copy(min_xyz)
+        max_xyz = r3vector_copy(max_xyz)
+
+        for i in range(3):
+            if min_xyz[i] > max_xyz[i]:
+                raise Unrecoverable('PointRegistry: invalid AABB with min > max')
+
+        oct_min = self._octree.min_xyz
+        oct_max = self._octree.max_xyz
+
+        # Disjoint from registry bounds.
+        for i in range(3):
+            if max_xyz[i] < oct_min[i] or min_xyz[i] > oct_max[i]:
+                return []
+
+        clamped_min = np.maximum(min_xyz, oct_min)
+        clamped_max = np.minimum(max_xyz, oct_max)
+
+        lo = self._octree._point_to_cell(clamped_min)
+        hi = self._octree._point_to_cell(clamped_max)
+
+        nx = hi[0] - lo[0] + 1
+        ny = hi[1] - lo[1] + 1
+        nz = hi[2] - lo[2] + 1
+        total_cells = nx * ny * nz
+
+        if max_cells is not None and total_cells > max_cells:
+            return None
+
+        keys: list[int] = []
+        depth = self._octree.depth
+        for ix in range(lo[0], hi[0] + 1):
+            for iy in range(lo[1], hi[1] + 1):
+                for iz in range(lo[2], hi[2] + 1):
+                    keys.append(Octree._interleave_bits(ix, iy, iz, depth))
+        return keys
 
     def get_or_insert(self, point: R3Vector) -> Index:
         '''Return the index of *point*, inserting it first if no match exists.'''
@@ -219,41 +275,91 @@ class WireMesh3D:
                         )
             copied[name] = pts
 
+        all_pts_flat = np.array([pt for pts in copied.values() for pt in pts])
+        bbox_min = r3vector_copy(np.min(all_pts_flat, axis=0))
+        bbox_max = r3vector_copy(np.max(all_pts_flat, axis=0))
+        # Pad to guarantee strict min < max and avoid boundary issues.
+        max_coord = Real(max(
+            float(np.max(np.abs(bbox_max))),
+            float(np.max(np.abs(bbox_min))),
+            1.0,
+        ))
+        pad = reltol * max_coord
+        bbox_min -= pad
+        bbox_max += pad
+
         # Inter-polyline collision checks.
-        poly_items = list(copied.items())
-        for i in range(len(poly_items)):
-            name_a, pts_a = poly_items[i]
-            for j in range(i + 1, len(poly_items)):
-                name_b, pts_b = poly_items[j]
-                # Segment-segment intersections are only allowed at shared endpoints.
-                for ia in range(len(pts_a) - 1):
-                    for ib in range(len(pts_b) - 1):
-                        p0 = pts_a[ia]
-                        p1 = pts_a[ia + 1]
-                        q0 = pts_b[ib]
-                        q1 = pts_b[ib + 1]
-                        c1, c2 = _segment_segment_closest_points(
-                            p0,
-                            p1,
-                            q0,
-                            q1,
-                        )
-                        if r3vector_equality(c1, c2, reltol) and not _is_shared_endpoint_intersection(
-                            p0,
-                            p1,
-                            q0,
-                            q1,
-                            c1,
-                            c2,
-                            reltol,
-                        ):
-                            raise NotYetImplemented(
-                                ''.join([
-                                    'WireMesh3D: intersecting segments are not yet supported ',
-                                    '(polylines "', name_a, '" segment ', str(ia),
-                                    ' and "', name_b, '" segment ', str(ib), ')',
-                                ])
-                            )
+        broad_phase = PointRegistry(bbox_min, bbox_max, reltol)
+        segment_records: list[tuple[str, int, R3Vector, R3Vector]] = []
+        for name, pts in copied.items():
+            for seg_idx in range(len(pts) - 1):
+                segment_records.append((name, seg_idx, pts[seg_idx], pts[seg_idx + 1]))
+
+        MAX_CELLS_PER_SEGMENT = 4096
+        cell_to_segments: dict[int, list[int]] = {}
+        candidate_pairs: set[tuple[int, int]] = set()
+        global_segments: list[int] = []
+        for seg_id, (name, _seg_idx, p0, p1) in enumerate(segment_records):
+            seg_min = r3vector_copy(np.minimum(p0, p1) - broad_phase.abstol)
+            seg_max = r3vector_copy(np.maximum(p0, p1) + broad_phase.abstol)
+            keys = broad_phase.morton_keys_for_aabb(
+                seg_min,
+                seg_max,
+                max_cells=MAX_CELLS_PER_SEGMENT,
+            )
+            if keys is None:
+                global_segments.append(seg_id)
+                continue
+
+            for key in keys:
+                occupants = cell_to_segments.get(key, [])
+                for other_id in occupants:
+                    other_name = segment_records[other_id][0]
+                    if other_name == name:
+                        continue
+                    if other_id < seg_id:
+                        candidate_pairs.add((other_id, seg_id))
+                    else:
+                        candidate_pairs.add((seg_id, other_id))
+                if key not in cell_to_segments:
+                    cell_to_segments[key] = []
+                cell_to_segments[key].append(seg_id)
+
+        for seg_id in global_segments:
+            name = segment_records[seg_id][0]
+            for other_id, (other_name, _other_seg_idx, _q0, _q1) in enumerate(segment_records):
+                if other_id == seg_id or other_name == name:
+                    continue
+                if other_id < seg_id:
+                    candidate_pairs.add((other_id, seg_id))
+                else:
+                    candidate_pairs.add((seg_id, other_id))
+
+        for seg_a, seg_b in sorted(candidate_pairs):
+            name_a, ia, p0, p1 = segment_records[seg_a]
+            name_b, ib, q0, q1 = segment_records[seg_b]
+            c1, c2 = _segment_segment_closest_points(
+                p0,
+                p1,
+                q0,
+                q1,
+            )
+            if r3vector_equality(c1, c2, reltol) and not _is_shared_endpoint_intersection(
+                p0,
+                p1,
+                q0,
+                q1,
+                c1,
+                c2,
+                reltol,
+            ):
+                raise NotYetImplemented(
+                    ''.join([
+                        'WireMesh3D: intersecting segments are not yet supported ',
+                        '(polylines "', name_a, '" segment ', str(ia),
+                        ' and "', name_b, '" segment ', str(ib), ')',
+                    ])
+                )
 
         self._named_polylines = copied
         self._h = h
@@ -282,18 +388,6 @@ class WireMesh3D:
         # Build point registry and subsegment point pairs.
         # Compute bounding box from polyline vertices (subsegment endpoints
         # are interpolated within the convex hull of these vertices).
-        all_pts_flat = np.array([pt for pts in copied.values() for pt in pts])
-        bbox_min = r3vector_copy(np.min(all_pts_flat, axis=0))
-        bbox_max = r3vector_copy(np.max(all_pts_flat, axis=0))
-        # Pad to guarantee strict min < max and avoid boundary issues.
-        max_coord = Real(max(
-            float(np.max(np.abs(bbox_max))),
-            float(np.max(np.abs(bbox_min))),
-            1.0,
-        ))
-        pad = reltol * max_coord
-        bbox_min -= pad
-        bbox_max += pad
         self._point_registry = PointRegistry(bbox_min, bbox_max, reltol)
         subsegment_point_pairs: list[tuple[Index, Index]] = []
         for mesh_idx in range(len(self._subsegment_index)):
