@@ -9,4 +9,5 @@ from .io_formats.svg_reader import read_svg
 from .io_formats.vtk_writer import export_polylines
 from .geometry.wire_segments import as_xyz
 from .operators import FillChoice, WireMesh3DFill, MeshFunctions, PointRegistry, WireMesh3D, unify_meshes
+from .quadrature import ModepyRule1DSource
 

@@ -26,9 +26,21 @@ def test_invalid_quadrature_constructor():
         r = quadrature.Rule1D('bad',-1,np.zeros((3,1)), np.zeros((1,3)))
     rules = quadrature.RuleCache()
     with pytest.raises(MissingQuadratureDefinition):
-        r = rules.gauss_rule(1)
+        r = rules.gauss_rule(0)
     with pytest.raises(MissingQuadratureDefinition):
-        r = rules.kronrod_rule(1)        
+        r = rules.kronrod_rule(2)
+
+def test_modepy_rule_source():
+    source = quadrature.ModepyRule1DSource()
+    gauss = source.gauss_rule(4)
+    assert gauss.size == 4
+    assert gauss.positions.shape == (4,)
+    assert gauss.weights.shape == (4,)
+
+    kronrod = source.kronrod_rule(7)
+    assert kronrod.size == 7
+    assert kronrod.positions.shape == (7,)
+    assert kronrod.weights.shape == (7,)
 
 def exp_n_x(n,x):
     '''exp(n*x); definite integral from -1 to 1 is (exp(n)-exp(-n))/n'''

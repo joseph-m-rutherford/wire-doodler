@@ -3,6 +3,7 @@
 from doodler.common import Index, Real
 from doodler.errors import Recoverable
 from .rules import Rule1D, Rule2D
+from .modepy_rules import ModepyRule1DSource
 
 import numpy as np
 import os
@@ -28,6 +29,7 @@ class RuleCache:
         self._kronrod_cache = dict[Index,Rule1D]()
         self._uniform_cache = dict[Index,Rule1D]()
         self._lock = threading.RLock()
+        self._modepy_source = ModepyRule1DSource()
 
     def _cache_rule(self,name: str, size: Index) -> None:
         '''Locks for thread safety, loads the contents from disk, stores in cache, and unlocks'''
@@ -44,13 +46,26 @@ class RuleCache:
                 RuleCache._gauss_label:self._gauss_cache,
                 RuleCache._kronrod_label:self._kronrod_cache}
             file_name = RuleCache._file_name_format.format(rule_type=name,rule_size=size)
-            if not os.path.exists(file_name):
-                raise MissingQuadratureDefinition('Cannot find quadrature rule file {}'.format(file_name))
             with self._lock:
                 cache = file_caches[name]
-                table = parquet.read_table(file_name)
-                # Copy table contents into new Rule, insert into cache
-                cache[size] = Rule1D(name,size,table['position'],table['weight'])     
+                if os.path.exists(file_name):
+                    table = parquet.read_table(file_name)
+                    # Copy table contents into new Rule, insert into cache
+                    cache[size] = Rule1D(name,size,table['position'],table['weight'])
+                    return
+
+                # Fall back to modepy when a bundled parquet rule is not available.
+                try:
+                    if name is RuleCache._gauss_label:
+                        cache[size] = self._modepy_source.gauss_rule(size)
+                    elif name is RuleCache._kronrod_label:
+                        cache[size] = self._modepy_source.kronrod_rule(size)
+                    else:
+                        raise MissingQuadratureDefinition('Cannot find quadrature rule file {}'.format(file_name))
+                except Exception as e:
+                    raise MissingQuadratureDefinition(
+                        'Cannot find quadrature rule file {} and modepy fallback failed: {}'.format(file_name,e)
+                    ) from e
 
     def gauss_rule(self, size:Index) -> Rule1D:
         '''If the Gauss rule is in memory, return it; else find on disk and return it'''
