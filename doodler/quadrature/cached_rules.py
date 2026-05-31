@@ -21,12 +21,14 @@ class RuleCache:
 
     _gauss_label = 'gauss'
     _kronrod_label = 'kronrod'
+    _clenshaw_curtis_label = 'clenshaw_curtis'
     _uniform_label = 'uniform'
     _file_name_format = os.path.join(os.path.dirname(__file__),'{rule_type}_{rule_size}.parquet')
 
     def __init__(self):
         self._gauss_cache = dict[Index,Rule1D]()
         self._kronrod_cache = dict[Index,Rule1D]()
+        self._clenshaw_curtis_cache = dict[Index,Rule1D]()
         self._uniform_cache = dict[Index,Rule1D]()
         self._lock = threading.RLock()
         self._modepy_source = ModepyRule1DSource()
@@ -44,7 +46,8 @@ class RuleCache:
         else:
             file_caches = {
                 RuleCache._gauss_label:self._gauss_cache,
-                RuleCache._kronrod_label:self._kronrod_cache}
+                RuleCache._kronrod_label:self._kronrod_cache,
+                RuleCache._clenshaw_curtis_label:self._clenshaw_curtis_cache}
             file_name = RuleCache._file_name_format.format(rule_type=name,rule_size=size)
             with self._lock:
                 cache = file_caches[name]
@@ -56,10 +59,8 @@ class RuleCache:
 
                 # Fall back to modepy when a bundled parquet rule is not available.
                 try:
-                    if name is RuleCache._gauss_label:
-                        cache[size] = self._modepy_source.gauss_rule(size)
-                    elif name is RuleCache._kronrod_label:
-                        cache[size] = self._modepy_source.kronrod_rule(size)
+                    if name is RuleCache._clenshaw_curtis_label:
+                        cache[size] = self._modepy_source.clenshaw_curtis_rule(size)
                     else:
                         raise MissingQuadratureDefinition('Cannot find quadrature rule file {}'.format(file_name))
                 except Exception as e:
@@ -78,6 +79,12 @@ class RuleCache:
         if size not in self._kronrod_cache:
             self._cache_rule(RuleCache._kronrod_label,size)
         return self._kronrod_cache[size]
+
+    def clenshaw_curtis_rule(self, size:Index) -> Rule1D:
+        '''If the Clenshaw-Curtis rule is in memory, return it; else find on disk or modepy and return it'''
+        if size not in self._clenshaw_curtis_cache:
+            self._cache_rule(RuleCache._clenshaw_curtis_label,size)
+        return self._clenshaw_curtis_cache[size]
     
     def uniform_rule(self, size:Index) -> Rule1D:
         '''If the uniform rule is in memory, return it; else compute and return it'''
@@ -92,4 +99,8 @@ class RuleCache:
     def uniform_x_kronrod_rule(self, size_uniform:Index, size_kronrod:Index) -> Rule2D:
         '''Compute and return compound rule uniform(size_uniform) x rule_kronrod(size_kronrod)'''
         return Rule2D(self.uniform_rule(size_uniform),self.kronrod_rule(size_kronrod))
+
+    def uniform_x_clenshaw_curtis_rule(self, size_uniform:Index, size_clenshaw_curtis:Index) -> Rule2D:
+        '''Compute and return compound rule uniform(size_uniform) x rule_clenshaw_curtis(size_clenshaw_curtis)'''
+        return Rule2D(self.uniform_rule(size_uniform),self.clenshaw_curtis_rule(size_clenshaw_curtis))
 

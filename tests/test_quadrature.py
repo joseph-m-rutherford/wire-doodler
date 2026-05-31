@@ -29,18 +29,31 @@ def test_invalid_quadrature_constructor():
         r = rules.gauss_rule(0)
     with pytest.raises(MissingQuadratureDefinition):
         r = rules.kronrod_rule(2)
+    with pytest.raises(MissingQuadratureDefinition):
+        r = rules.clenshaw_curtis_rule(1)
 
 def test_modepy_rule_source():
     source = quadrature.ModepyRule1DSource()
-    gauss = source.gauss_rule(4)
-    assert gauss.size == 4
-    assert gauss.positions.shape == (4,)
-    assert gauss.weights.shape == (4,)
+    clenshaw_curtis = source.clenshaw_curtis_rule(7)
+    assert clenshaw_curtis.size == 7
+    assert clenshaw_curtis.positions.shape == (7,)
+    assert clenshaw_curtis.weights.shape == (7,)
 
-    kronrod = source.kronrod_rule(7)
-    assert kronrod.size == 7
-    assert kronrod.positions.shape == (7,)
-    assert kronrod.weights.shape == (7,)
+    # Clenshaw-Curtis includes endpoints exactly.
+    assert real_equality(clenshaw_curtis.positions[0],-1.0,FINE_TOLERANCE)
+    assert real_equality(clenshaw_curtis.positions[-1],1.0,FINE_TOLERANCE)
+
+def test_clenshaw_curtis_rule_cache():
+    rules = quadrature.RuleCache()
+    clenshaw_curtis = rules.clenshaw_curtis_rule(8)
+    assert clenshaw_curtis.size == 8
+    assert clenshaw_curtis.positions.shape == (8,)
+    assert clenshaw_curtis.weights.shape == (8,)
+
+    # Clenshaw-Curtis of order N is exact for degree <= N polynomials.
+    # Here size=8 means order=7, so x^6 must integrate exactly on [-1,1].
+    x6_integral = np.dot(clenshaw_curtis.weights,clenshaw_curtis.positions**6)
+    assert real_equality(x6_integral,2./7.,FINE_TOLERANCE)
 
 def exp_n_x(n,x):
     '''exp(n*x); definite integral from -1 to 1 is (exp(n)-exp(-n))/n'''
@@ -112,11 +125,18 @@ def test_2D_quadrature_rules():
     assert rule_u20k21.size == (20,21)
     values_u20k21 = f1_s_t(rule_u20k21.positions[0,:],rule_u20k21.positions[1,:])
     integral_u20k21 = np.dot(values_u20k21.flatten(),rule_u20k21.weights.flatten())
+    rule_u20c21 = rules.uniform_x_clenshaw_curtis_rule(20,21)
+    assert rule_u20c21.size == (20,21)
+    values_u20c21 = f1_s_t(rule_u20c21.positions[0,:],rule_u20c21.positions[1,:])
+    integral_u20c21 = np.dot(values_u20c21.flatten(),rule_u20c21.weights.flatten())
     error_u10g10 = relative_error(integral_u10g10,reference,FINE_TOLERANCE)
     error_estimated_u10g10 = relative_error(integral_u10g10,integral_u20k21,FINE_TOLERANCE)
     # Accuracy achieved only to COARSE_TOLERANCE
     assert real_equality(error_estimated_u10g10,error_u10g10,COARSE_TOLERANCE)
     assert real_equality(integral_u10g10,reference,COARSE_TOLERANCE)
+    # Clenshaw-Curtis should match Kronrod accuracy at this order.
+    assert real_equality(integral_u20c21,reference,COARSE_TOLERANCE)
+    assert real_equality(integral_u20c21,integral_u20k21,COARSE_TOLERANCE)
 
     # Move up exponent scaling by 10, recycle quadrature rules
     # Volume under function over area is iint f(rho,phi)*rho*dphi*drho
@@ -139,6 +159,8 @@ def test_2D_quadrature_rules():
     # This u10g10 rule should be inaccurate; test error estimation using coresponding u20k21 rule
     values_u20k21 = f10_s_t(rule_u20k21.positions[0,:],rule_u20k21.positions[1,:])
     integral_u20k21 = np.dot(values_u20k21.flatten(),rule_u20k21.weights.flatten())
+    values_u20c21 = f10_s_t(rule_u20c21.positions[0,:],rule_u20c21.positions[1,:])
+    integral_u20c21 = np.dot(values_u20c21.flatten(),rule_u20c21.weights.flatten())
     error_u10g10 = relative_error(integral_u10g10,reference,FINE_TOLERANCE)
     error_estimated_u10g10 = relative_error(integral_u10g10,integral_u20k21,FINE_TOLERANCE)
     # Error estimate is larger; use very coarse tolerance
@@ -147,6 +169,9 @@ def test_2D_quadrature_rules():
     assert not real_equality(integral_u10g10,reference,COARSE_TOLERANCE)
     # High order solution in very coarse adequate
     assert real_equality(integral_u20k21,reference,math.sqrt(COARSE_TOLERANCE))
+    # Clenshaw-Curtis should match Kronrod accuracy at this order.
+    assert real_equality(integral_u20c21,reference,math.sqrt(COARSE_TOLERANCE))
+    assert real_equality(integral_u20c21,integral_u20k21,math.sqrt(COARSE_TOLERANCE))
     # Move up in rule orders
     rule_u30g30 = rules.uniform_x_gauss_rule(30,30)
     assert rule_u30g30.size == (30,30)

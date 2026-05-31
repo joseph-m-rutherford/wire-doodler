@@ -12,6 +12,7 @@ class ModepyRule1DSource:
 
     _gauss_label = 'gauss'
     _kronrod_label = 'kronrod'
+    _clenshaw_curtis_label = 'clenshaw_curtis'
 
     def gauss_rule(self, size: Index) -> Rule1D:
         '''Create an N-node Gauss-Legendre rule on (-1,1).'''
@@ -43,3 +44,21 @@ class ModepyRule1DSource:
         positions = positions[sorted_indices]
         weights = weights[sorted_indices]
         return Rule1D(self._kronrod_label, size, positions, weights)
+
+    def clenshaw_curtis_rule(self, size: Index) -> Rule1D:
+        '''Create an N-node Clenshaw-Curtis rule on (-1,1).'''
+        from modepy import ClenshawCurtisQuadrature
+
+        if size < 2:
+            raise ValueError('Clenshaw-Curtis rule size must be >= 2')
+
+        # modepy uses an order N that produces N+1 nodes.
+        rule = ClenshawCurtisQuadrature(int(size) - 1, force_dim_axis=True)
+        positions = np.array(rule.nodes[0], dtype=Real)
+        weights = np.array(rule.weights, dtype=Real)
+
+        # Keep ascending position convention used by cached parquet rules.
+        sorted_indices = np.argsort(positions)
+        positions = positions[sorted_indices]
+        weights = weights[sorted_indices]
+        return Rule1D(self._clenshaw_curtis_label, size, positions, weights)
