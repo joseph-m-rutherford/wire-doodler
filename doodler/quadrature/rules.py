@@ -5,7 +5,6 @@ from doodler.errors import NeverImplement, Recoverable, Unrecoverable
 
 import numpy as np
 import os
-from pyarrow import parquet
 import threading
 
 class InvalidQuadratureDefinition(Unrecoverable):

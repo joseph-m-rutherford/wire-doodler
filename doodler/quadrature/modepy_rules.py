@@ -6,7 +6,6 @@ from .rules import Rule1D
 
 import numpy as np
 
-
 class ModepyRule1DSource:
     '''Constructs Rule1D quadratures from modepy.'''
 

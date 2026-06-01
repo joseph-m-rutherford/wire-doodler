@@ -50,8 +50,7 @@
   - `python -m pytest tests/test_wire_mesh_3d.py tests/test_fillers.py tests/test_wire_segments.py tests/test_svg.py -q`
 
 ## Data/dependency integration points
-- Quadrature rule parquet files are generated artifacts written under `doodler/quadrature/*.parquet`; `RuleCache` resolves any cached rules relative to that package directory when they exist.
-- The source of truth for these rules is the Julia script `doodler/quadrature/generate_quadrature_rules.jl`, which is run in CI (and should be run locally when needed) to regenerate the parquet files consumed by Python tests and workflows.
+- Quadrature rules are trivially computed or obtained from the `modepy` package
 - Sampling accuracy behavior is validated against SciPy integration in tests; changing span/rule selection logic in `Shape3DSampler` will affect many assertions.
 
 ## Testing patterns to mirror

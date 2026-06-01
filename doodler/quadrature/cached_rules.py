@@ -7,7 +7,6 @@ from .modepy_rules import ModepyRule1DSource
 
 import numpy as np
 import os
-from pyarrow import parquet
 import threading
 
 class MissingQuadratureDefinition(Recoverable):
@@ -23,8 +22,7 @@ class RuleCache:
     _kronrod_label = 'kronrod'
     _clenshaw_curtis_label = 'clenshaw_curtis'
     _uniform_label = 'uniform'
-    _file_name_format = os.path.join(os.path.dirname(__file__),'{rule_type}_{rule_size}.parquet')
-
+ 
     def __init__(self):
         self._gauss_cache = dict[Index,Rule1D]()
         self._kronrod_cache = dict[Index,Rule1D]()
@@ -83,16 +81,8 @@ class RuleCache:
                     'Cannot construct modepy {} rule of size {}: {}'.format(name,size,e)
                 ) from e
             return
-
-        # Unknown rule names are loaded from parquet if available.
-        file_name = RuleCache._file_name_format.format(rule_type=name,rule_size=size)
-        with self._lock:
-            if os.path.exists(file_name):
-                table = parquet.read_table(file_name)
-                self._file_cache[(name,size)] = Rule1D(name,size,table['position'],table['weight'])
-                return
-        raise MissingQuadratureDefinition('Cannot find quadrature rule file {}'.format(file_name))
-
+        raise MissingQuadratureDefinition("Unknown quadrature rule name '{}'".format(name))
+    
     def gauss_rule(self, size:Index) -> Rule1D:
         '''If the Gauss rule is in memory, return it; else find on disk and return it'''
         if size not in self._gauss_cache:
@@ -128,4 +118,3 @@ class RuleCache:
     def uniform_x_clenshaw_curtis_rule(self, size_uniform:Index, size_clenshaw_curtis:Index) -> Rule2D:
         '''Compute and return compound rule uniform(size_uniform) x rule_clenshaw_curtis(size_clenshaw_curtis)'''
         return Rule2D(self.uniform_rule(size_uniform),self.clenshaw_curtis_rule(size_clenshaw_curtis))
-
