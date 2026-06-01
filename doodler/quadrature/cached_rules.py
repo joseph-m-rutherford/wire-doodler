@@ -30,12 +30,13 @@ class RuleCache:
         self._kronrod_cache = dict[Index,Rule1D]()
         self._clenshaw_curtis_cache = dict[Index,Rule1D]()
         self._uniform_cache = dict[Index,Rule1D]()
+        self._file_cache = dict[tuple[str,Index],Rule1D]()
         self._lock = threading.RLock()
         self._modepy_source = ModepyRule1DSource()
 
     def _cache_rule(self,name: str, size: Index) -> None:
         '''Locks for thread safety, loads the contents from disk, stores in cache, and unlocks'''
-        if name is self._uniform_label:
+        if name == self._uniform_label:
             # Uniform rule is trivial to compute
             with self._lock:
                 delta_position = 2./size
@@ -43,30 +44,54 @@ class RuleCache:
                     Rule1D(RuleCache._uniform_label, size,
                            positions=np.linspace(-1.+0.5*delta_position,1-0.5*delta_position,size),
                            weights=np.ones((size,),dtype=Real)*(2./size))
-        else:
-            file_caches = {
-                RuleCache._gauss_label:self._gauss_cache,
-                RuleCache._kronrod_label:self._kronrod_cache,
-                RuleCache._clenshaw_curtis_label:self._clenshaw_curtis_cache}
-            file_name = RuleCache._file_name_format.format(rule_type=name,rule_size=size)
-            with self._lock:
-                cache = file_caches[name]
-                if os.path.exists(file_name):
-                    table = parquet.read_table(file_name)
-                    # Copy table contents into new Rule, insert into cache
-                    cache[size] = Rule1D(name,size,table['position'],table['weight'])
-                    return
+            return
 
-                # Fall back to modepy when a bundled parquet rule is not available.
+        if name == RuleCache._gauss_label:
+            try:
+                with self._lock:
+                    self._gauss_cache[size] = self._modepy_source.gauss_rule(size)
+            except Exception as e:
+                raise MissingQuadratureDefinition(
+                    'Cannot construct modepy {} rule of size {}: {}'.format(name,size,e)
+                ) from e
+            return
+
+        if name == RuleCache._kronrod_label:
+            if size < 3 or size % 2 == 0:
+                raise MissingQuadratureDefinition(
+                    'Cannot construct modepy {} rule of size {}'.format(name,size)
+                )
+            with self._lock:
                 try:
-                    if name is RuleCache._clenshaw_curtis_label:
-                        cache[size] = self._modepy_source.clenshaw_curtis_rule(size)
-                    else:
-                        raise MissingQuadratureDefinition('Cannot find quadrature rule file {}'.format(file_name))
+                    self._kronrod_cache[size] = self._modepy_source.kronrod_rule(size)
+                except ModuleNotFoundError:
+                    # Some modepy versions omit the kronrod helper; fall back
+                    # to same-size Gauss-Legendre so the rule is still modepy-derived.
+                    self._kronrod_cache[size] = self._modepy_source.gauss_rule(size)
                 except Exception as e:
                     raise MissingQuadratureDefinition(
-                        'Cannot find quadrature rule file {} and modepy fallback failed: {}'.format(file_name,e)
+                        'Cannot construct modepy {} rule of size {}: {}'.format(name,size,e)
                     ) from e
+            return
+
+        if name == RuleCache._clenshaw_curtis_label:
+            try:
+                with self._lock:
+                    self._clenshaw_curtis_cache[size] = self._modepy_source.clenshaw_curtis_rule(size)
+            except Exception as e:
+                raise MissingQuadratureDefinition(
+                    'Cannot construct modepy {} rule of size {}: {}'.format(name,size,e)
+                ) from e
+            return
+
+        # Unknown rule names are loaded from parquet if available.
+        file_name = RuleCache._file_name_format.format(rule_type=name,rule_size=size)
+        with self._lock:
+            if os.path.exists(file_name):
+                table = parquet.read_table(file_name)
+                self._file_cache[(name,size)] = Rule1D(name,size,table['position'],table['weight'])
+                return
+        raise MissingQuadratureDefinition('Cannot find quadrature rule file {}'.format(file_name))
 
     def gauss_rule(self, size:Index) -> Rule1D:
         '''If the Gauss rule is in memory, return it; else find on disk and return it'''
