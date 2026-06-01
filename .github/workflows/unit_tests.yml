@@ -13,33 +13,6 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
-        
-      - name: Setup Julia
-        uses: julia-actions/setup-julia@v1
-        with:
-          version: ${{ env.JULIA_VERSION }}
-
-      - name: Cache Julia packages
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.julia/artifacts
-            ~/.julia/compiled
-            ~/.julia/packages
-            ~/.julia/registries
-          key: ${{ runner.os }}-julia-${{ env.JULIA_VERSION }}-pkgs-${{ hashFiles('doodler/quadrature/Project.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-julia-${{ env.JULIA_VERSION }}pkgs-
-
-      - name: Install Julia packages
-        working-directory: doodler/quadrature
-        run: |
-          julia --project=. -e 'using Pkg; Pkg.instantiate(); Pkg.precompile()'
-
-      - name: Generate Quadrature Rules
-        working-directory: doodler/quadrature
-        run: |
-          julia --project=. generate_quadrature_rules.jl
 
       - name: Setup Python
         uses: actions/setup-python@v4
