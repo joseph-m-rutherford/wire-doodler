@@ -8,6 +8,7 @@ from ..errors import NeverImplement
 from ..errors import NotYetImplemented
 from ..errors import Unrecoverable
 from ..operators.mesh_functions import MeshFunctions
+from ..operators.partitioner import PartitionMethod
 from ..r3 import R3Vector, r3vector_copy, r3vector_equality, Octree, TOLERANCE
 
 
@@ -248,6 +249,9 @@ class WireMesh3D:
         named_polylines: dict[str, list[R3Vector]],
         h: Real,
         reltol: Real,
+        *,
+        method: PartitionMethod = PartitionMethod.OCTREE,
+        n_parts: int = 1,
     ) -> None:
         h = Real(h)
         reltol = Real(reltol)
@@ -255,6 +259,8 @@ class WireMesh3D:
             raise Unrecoverable('WireMesh3D: mesh density h must be positive')
         if reltol <= Real(0):
             raise Unrecoverable('WireMesh3D: tolerance reltol must be positive')
+        if int(n_parts) < 1:
+            raise Unrecoverable('WireMesh3D: n_parts must be >= 1')
 
         # Validate and deep-copy polylines; detect intra-polyline collisions.
         copied: dict[str, list[R3Vector]] = {}
@@ -364,6 +370,8 @@ class WireMesh3D:
         self._named_polylines = copied
         self._h = h
         self._reltol = reltol
+        self._method = PartitionMethod(method)
+        self._n_parts = int(n_parts)
 
         # Compute the number of uniform subsegments for each polyline segment.
         # Every segment must have at least 1 subsegment.
@@ -397,7 +405,7 @@ class WireMesh3D:
             subsegment_point_pairs.append((start_idx, end_idx))
         self._subsegment_point_pairs = subsegment_point_pairs
 
-        self._mesh_functions = MeshFunctions(self)
+        self._mesh_functions = MeshFunctions(self, self._method, self._n_parts)
 
     @property
     def named_polylines(self) -> dict[str, list[R3Vector]]:
@@ -428,6 +436,24 @@ class WireMesh3D:
     @reltol.setter
     def reltol(self, value) -> None:
         raise NeverImplement('WireMesh3D reltol is immutable')
+
+    @property
+    def method(self) -> PartitionMethod:
+        '''Partitioning method used to construct mesh functions.'''
+        return self._method
+
+    @method.setter
+    def method(self, value) -> None:
+        raise NeverImplement('WireMesh3D method is immutable')
+
+    @property
+    def n_parts(self) -> int:
+        '''Number of partitions requested.'''
+        return self._n_parts
+
+    @n_parts.setter
+    def n_parts(self, value) -> None:
+        raise NeverImplement('WireMesh3D n_parts is immutable')
 
     @property
     def named_subsegment_counts(self) -> dict[str, list[Integer]]:
@@ -542,7 +568,9 @@ class WireMesh3D:
         instance._subsegment_point_pairs = [
             (remap[int(a)], remap[int(b)]) for a, b in source._subsegment_point_pairs
         ]
-        instance._mesh_functions = MeshFunctions(instance)
+        instance._method = source._method
+        instance._n_parts = source._n_parts
+        instance._mesh_functions = MeshFunctions(instance, source._method, source._n_parts)
         return instance
 
 
