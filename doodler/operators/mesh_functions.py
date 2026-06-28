@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 from ..common import Index
 from ..errors import NeverImplement
 from ..errors import Unrecoverable
+from .partitioner import PartitionMethod, Partitioner
 
 if TYPE_CHECKING:
     from .wire_mesh import WireMesh3D
@@ -18,7 +19,12 @@ class MeshFunctions:
     that share exactly one vertex.
     """
 
-    def __init__(self, mesh: "WireMesh3D") -> None:
+    def __init__(
+        self,
+        mesh: "WireMesh3D",
+        method: PartitionMethod = PartitionMethod.OCTREE,
+        n_parts: int = 1,
+    ) -> None:
         point_pairs = mesh.subsegment_point_pairs
 
         vertex_subsegments: dict[Index, list[Index]] = {}
@@ -53,6 +59,17 @@ class MeshFunctions:
 
         pairs = sorted(pair_set, key=lambda pair: (int(pair[0]), int(pair[1])))
         self._function_subsegment_pairs: tuple[tuple[Index, Index], ...] = tuple(pairs)
+
+        self._partitioner = Partitioner(mesh, self, method, n_parts)
+
+    @property
+    def partitioner(self) -> Partitioner:
+        '''Partitioner for this function set.'''
+        return self._partitioner
+
+    @partitioner.setter
+    def partitioner(self, value) -> None:
+        raise NeverImplement('MeshFunctions partitioner is immutable')
 
     @property
     def function_subsegment_pairs(self) -> list[tuple[Index, Index]]:
