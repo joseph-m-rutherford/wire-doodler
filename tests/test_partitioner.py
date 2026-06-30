@@ -289,16 +289,16 @@ def test_wire_mesh_n_parts_zero_raises():
 
 
 # ---------------------------------------------------------------------------
-# pymetis: Recoverable when not installed
+# kahip: Recoverable when not installed
 # ---------------------------------------------------------------------------
 
-def test_partitioner_pymetis_not_installed_raises_recoverable():
+def test_partitioner_kahip_not_installed_raises_recoverable():
     mesh = _simple_mesh()
     real_import = builtins.__import__
 
     def mock_import(name, *args, **kwargs):
-        if name == 'pymetis':
-            raise ImportError('pymetis not installed')
+        if name == 'kahip':
+            raise ImportError('kahip not installed')
         return real_import(name, *args, **kwargs)
 
     with mock.patch('builtins.__import__', side_effect=mock_import):
@@ -306,29 +306,6 @@ def test_partitioner_pymetis_not_installed_raises_recoverable():
             Partitioner(
                 mesh,
                 mesh.mesh_functions,
-                PartitionMethod.PYMETIS,
-                n_parts=1,
-            )
-
-
-# ---------------------------------------------------------------------------
-# scotchpy64: Recoverable when not installed
-# ---------------------------------------------------------------------------
-
-def test_partitioner_scotchpy64_not_installed_raises_recoverable():
-    mesh = _simple_mesh()
-    real_import = builtins.__import__
-
-    def mock_import(name, *args, **kwargs):
-        if name == 'scotchpy64':
-            raise ImportError('scotchpy64 not installed')
-        return real_import(name, *args, **kwargs)
-
-    with mock.patch('builtins.__import__', side_effect=mock_import):
-        with pytest.raises(Recoverable):
-            Partitioner(
-                mesh,
-                mesh.mesh_functions,
-                PartitionMethod.SCOTCHPY64,
+                PartitionMethod.KAHIP,
                 n_parts=1,
             )

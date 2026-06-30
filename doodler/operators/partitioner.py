@@ -18,8 +18,7 @@ if TYPE_CHECKING:
 class PartitionMethod(str, Enum):
     """Strategy used by :class:`Partitioner` to assign functions to partitions."""
     OCTREE = 'octree'
-    PYMETIS = 'pymetis'
-    SCOTCHPY64 = 'scotchpy64'
+    KAHIP = 'kahip'
 
 
 def _build_adjacency_list(
@@ -68,15 +67,11 @@ class Partitioner:
       produces exactly *n_parts* occupied cells is selected; if no such depth
       exists, :class:`~doodler.errors.Unrecoverable` is raised.
 
-    * :attr:`PartitionMethod.PYMETIS` — graph-based via ``pymetis``.  Raises
-      :class:`~doodler.errors.Recoverable` if ``pymetis`` is not installed.
-      When *n_parts* exceeds the number of connected components the result
-      may contain fewer than *n_parts* non-empty partitions (documented
-      behaviour, not an error).
-
-    * :attr:`PartitionMethod.SCOTCHPY64` — graph-based via ``scotchpy64``.
-      Raises :class:`~doodler.errors.Recoverable` if ``scotchpy64`` is not
-      installed.  Same caveat as pymetis for disconnected graphs.
+    * :attr:`PartitionMethod.KAHIP` — graph-based via ``kahip`` (KaFFPa).
+      Raises :class:`~doodler.errors.Recoverable` if ``kahip`` is not
+      installed (``pip install kahip``).  When *n_parts* exceeds the number
+      of connected components the result may contain fewer than *n_parts*
+      non-empty partitions (documented behaviour, not an error).
 
     Parameters
     ----------
@@ -110,10 +105,8 @@ class Partitioner:
 
         if method == PartitionMethod.OCTREE:
             assignment = self._build_octree(mesh, pairs, subseg_pairs, n_parts)
-        elif method == PartitionMethod.PYMETIS:
-            assignment = self._build_pymetis(pairs, subseg_pairs, n_parts, n_functions)
-        elif method == PartitionMethod.SCOTCHPY64:
-            assignment = self._build_scotchpy64(pairs, subseg_pairs, n_parts, n_functions)
+        elif method == PartitionMethod.KAHIP:
+            assignment = self._build_kahip(pairs, subseg_pairs, n_parts, n_functions)
         else:
             raise Unrecoverable('Partitioner: unknown method')
 
@@ -218,47 +211,22 @@ class Partitioner:
         return [key_to_part[k >> chosen_shift] for k in fine_keys]
 
     @staticmethod
-    def _build_pymetis(
+    def _build_kahip(
         pairs: list[tuple[Index, Index]],
         subseg_pairs: list[tuple[Index, Index]],
         n_parts: int,
         n_functions: int,
     ) -> list[int]:
-        """Partition functions using pymetis graph partitioning."""
+        """Partition functions using KaHIP (KaFFPa) graph partitioning."""
         try:
-            import pymetis  # type: ignore[import]
+            import kahip  # type: ignore[import]
         except ImportError as exc:
             raise Recoverable(
-                'Partitioner: pymetis is not installed; install it with "pip install pymetis"'
+                'Partitioner: kahip is not installed; install it with "pip install kahip"'
             ) from exc
-
-        # Build a temporary MeshFunctions-like object to reuse _build_adjacency_list.
-        class _Proxy:
-            def __init__(self, p):
-                self.function_subsegment_pairs = p
-
-        adj = _build_adjacency_list(_Proxy(pairs), subseg_pairs)  # type: ignore[arg-type]
 
         if n_functions == 0:
             return []
-
-        _, partition = pymetis.part_graph(n_parts, adjacency=adj)
-        return list(partition)
-
-    @staticmethod
-    def _build_scotchpy64(
-        pairs: list[tuple[Index, Index]],
-        subseg_pairs: list[tuple[Index, Index]],
-        n_parts: int,
-        n_functions: int,
-    ) -> list[int]:
-        """Partition functions using scotchpy64 graph partitioning."""
-        try:
-            import scotchpy64  # type: ignore[import]
-        except ImportError as exc:
-            raise Recoverable(
-                'Partitioner: scotchpy64 is not installed; install it with "pip install scotchpy64"'
-            ) from exc
 
         class _Proxy:
             def __init__(self, p):
@@ -266,27 +234,25 @@ class Partitioner:
 
         adj = _build_adjacency_list(_Proxy(pairs), subseg_pairs)  # type: ignore[arg-type]
 
-        if n_functions == 0:
-            return []
-
-        # Build CSR adjacency for scotchpy64.
-        # scotchpy64.Graph expects (xadj, adjncy) in CSR format.
-        xadj = [0]
-        adjncy = []
+        # Build CSR adjacency arrays.
+        xadj: list[int] = [0]
+        adjncy: list[int] = []
         for neighbors in adj:
             adjncy.extend(neighbors)
             xadj.append(len(adjncy))
 
-        graph = scotchpy64.Graph()
-        graph.build(0, n_functions, xadj, adjncy)
-        strat = scotchpy64.Strat()
-        strat.graphMapBuild(scotchpy64.STRATDEFAULT, n_parts, n_parts, 0.01)
-        arch = scotchpy64.Arch()
-        arch.archCmplt(n_parts)
-        mapping = scotchpy64.Mapping(graph, arch)
-        graph.mapCompute(mapping, strat)
-        partition = mapping.toTab()
-        return [int(p) for p in partition]
+        vwgt = [1] * n_functions
+        adjcwgt = [1] * len(adjncy)
+
+        _edgecut, blocks = kahip.kaffpa(
+            vwgt, xadj, adjcwgt, adjncy,
+            n_parts,
+            0.03,   # imbalance
+            1,      # suppress_output
+            0,      # seed
+            0,      # mode = FAST
+        )
+        return [int(b) for b in blocks]
 
     # ------------------------------------------------------------------
     # Immutable properties
