@@ -891,3 +891,532 @@ def test_kahip_rectangle_tenth_n_parts_4_coverage_and_invertibility():
     for fi in range(n_fns):
         pid = int(p.partition_of_function(Index(fi)))
         assert Index(fi) in p.functions_in_partition(Index(pid))
+
+
+# ===========================================================================
+# Hierarchical partitioning — local_function_indices and children properties
+# ===========================================================================
+
+def test_partitioner_local_function_indices_root_covers_all():
+    """Root partitioner's local_function_indices spans all global function indices."""
+    mesh = _two_parallel_lines_mesh(Real(1.0), 1, PartitionMethod.OCTREE)
+    p = mesh.mesh_functions.partitioner
+    n_fns = len(mesh.mesh_functions.function_subsegment_pairs)
+    assert sorted(int(fi) for fi in p.local_function_indices) == list(range(n_fns))
+
+
+def test_partitioner_local_function_indices_immutable():
+    mesh = _simple_mesh(Real(1.0))
+    p = mesh.mesh_functions.partitioner
+    with pytest.raises(NeverImplement):
+        p.local_function_indices = []
+
+
+def test_partitioner_local_function_indices_returns_copy():
+    mesh = _simple_mesh(Real(1.0))
+    p = mesh.mesh_functions.partitioner
+    lfi = p.local_function_indices
+    original_len = len(lfi)
+    lfi.clear()
+    assert len(p.local_function_indices) == original_len
+
+
+def test_partitioner_children_initially_none():
+    """All children slots are None before any refine() call."""
+    mesh = _two_parallel_lines_mesh(Real(1.0), 2, PartitionMethod.OCTREE)
+    p = mesh.mesh_functions.partitioner
+    assert p.children == (None, None)
+
+
+def test_partitioner_children_immutable():
+    mesh = _simple_mesh(Real(1.0))
+    p = mesh.mesh_functions.partitioner
+    with pytest.raises(NeverImplement):
+        p.children = ()
+
+
+def test_partitioner_children_returns_copy():
+    mesh = _two_parallel_lines_mesh(Real(1.0), 2, PartitionMethod.OCTREE)
+    p = mesh.mesh_functions.partitioner
+    c1 = p.children
+    c2 = p.children
+    assert c1 is not c2
+
+
+def test_partitioner_child_returns_none_before_refine():
+    mesh = _two_parallel_lines_mesh(Real(1.0), 2, PartitionMethod.OCTREE)
+    p = mesh.mesh_functions.partitioner
+    assert p.child(Index(0)) is None
+    assert p.child(Index(1)) is None
+
+
+def test_partitioner_child_out_of_range_raises():
+    mesh = _two_parallel_lines_mesh(Real(1.0), 2, PartitionMethod.OCTREE)
+    p = mesh.mesh_functions.partitioner
+    with pytest.raises(Unrecoverable):
+        p.child(Index(2))
+
+
+# ===========================================================================
+# Hierarchical partitioning — refine()
+# ===========================================================================
+
+def test_partitioner_refine_returns_child_partitioner():
+    mesh = _two_parallel_lines_mesh(Real(1.0), 2, PartitionMethod.OCTREE)
+    p = mesh.mesh_functions.partitioner
+    child = p.refine(Index(0), PartitionMethod.OCTREE, 1)
+    assert isinstance(child, Partitioner)
+
+
+def test_partitioner_refine_child_accessible_via_child_method():
+    mesh = _two_parallel_lines_mesh(Real(1.0), 2, PartitionMethod.OCTREE)
+    p = mesh.mesh_functions.partitioner
+    child = p.refine(Index(0), PartitionMethod.OCTREE, 1)
+    assert p.child(Index(0)) is child
+
+
+def test_partitioner_refine_child_local_functions_match_parent_partition():
+    """Child's local_function_indices == parent's functions_in_partition(pid)."""
+    mesh = _two_parallel_lines_mesh(Real(1.0), 2, PartitionMethod.OCTREE)
+    p = mesh.mesh_functions.partitioner
+    for pid in range(2):
+        parent_fns = sorted(int(f) for f in p.functions_in_partition(Index(pid)))
+        child = p.refine(Index(pid), PartitionMethod.OCTREE, 1)
+        child_lfi = sorted(int(f) for f in child.local_function_indices)
+        assert child_lfi == parent_fns
+
+
+def test_partitioner_refine_out_of_range_raises():
+    mesh = _two_parallel_lines_mesh(Real(1.0), 2, PartitionMethod.OCTREE)
+    p = mesh.mesh_functions.partitioner
+    with pytest.raises(Unrecoverable):
+        p.refine(Index(2), PartitionMethod.OCTREE, 1)
+
+
+def test_partitioner_refine_replaces_existing_child():
+    """Calling refine() again on the same partition_id replaces the child."""
+    mesh = _two_parallel_lines_mesh(Real(1.0), 2, PartitionMethod.OCTREE)
+    p = mesh.mesh_functions.partitioner
+    child1 = p.refine(Index(0), PartitionMethod.OCTREE, 1)
+    child2 = p.refine(Index(0), PartitionMethod.OCTREE, 1)
+    assert p.child(Index(0)) is child2
+    assert p.child(Index(0)) is not child1
+
+
+def test_partitioner_refine_child_partition_of_function_uses_global_index():
+    """Child's partition_of_function accepts the same global indices as the parent."""
+    mesh = _two_parallel_lines_mesh(Real(1.0), 2, PartitionMethod.OCTREE)
+    p = mesh.mesh_functions.partitioner
+    child = p.refine(Index(0), PartitionMethod.OCTREE, 1)
+    for fi in child.local_function_indices:
+        # Should not raise.
+        pid = child.partition_of_function(fi)
+        assert int(pid) == 0  # n_parts=1 so always partition 0
+
+
+def test_partitioner_refine_child_rejects_foreign_global_index():
+    """Child raises Unrecoverable for a global index not in its local set."""
+    mesh = _two_parallel_lines_mesh(Real(1.0), 2, PartitionMethod.OCTREE)
+    p = mesh.mesh_functions.partitioner
+    # partition 0 and partition 1 each have exactly 1 function.
+    child0 = p.refine(Index(0), PartitionMethod.OCTREE, 1)
+    fns_in_1 = p.functions_in_partition(Index(1))
+    assert len(fns_in_1) == 1
+    foreign_fi = fns_in_1[0]
+    with pytest.raises(Unrecoverable):
+        child0.partition_of_function(foreign_fi)
+
+
+# ===========================================================================
+# Hierarchical partitioning — node_at_path / functions_at_path
+# ===========================================================================
+
+def test_partitioner_node_at_path_empty_returns_self():
+    mesh = _two_parallel_lines_mesh(Real(1.0), 2, PartitionMethod.OCTREE)
+    p = mesh.mesh_functions.partitioner
+    assert p.node_at_path([]) is p
+
+
+def test_partitioner_node_at_path_depth_1():
+    mesh = _two_parallel_lines_mesh(Real(1.0), 2, PartitionMethod.OCTREE)
+    p = mesh.mesh_functions.partitioner
+    child = p.refine(Index(0), PartitionMethod.OCTREE, 1)
+    assert p.node_at_path([0]) is child
+
+
+def test_partitioner_node_at_path_missing_child_raises():
+    mesh = _two_parallel_lines_mesh(Real(1.0), 2, PartitionMethod.OCTREE)
+    p = mesh.mesh_functions.partitioner
+    with pytest.raises(Unrecoverable):
+        p.node_at_path([0])  # child not yet created
+
+
+def test_partitioner_node_at_path_out_of_range_raises():
+    mesh = _two_parallel_lines_mesh(Real(1.0), 2, PartitionMethod.OCTREE)
+    p = mesh.mesh_functions.partitioner
+    p.refine(Index(0), PartitionMethod.OCTREE, 1)
+    with pytest.raises(Unrecoverable):
+        p.node_at_path([2])  # partition_id 2 does not exist
+
+
+def test_partitioner_functions_at_path_empty_path_returns_root_local():
+    mesh = _two_parallel_lines_mesh(Real(1.0), 2, PartitionMethod.OCTREE)
+    p = mesh.mesh_functions.partitioner
+    assert sorted(int(f) for f in p.functions_at_path([])) == sorted(
+        int(f) for f in p.local_function_indices
+    )
+
+
+def test_partitioner_functions_at_path_depth_1_matches_partition():
+    """functions_at_path([pid]) == functions_in_partition(pid) for each pid."""
+    mesh = _two_parallel_lines_mesh(Real(1.0), 2, PartitionMethod.OCTREE)
+    p = mesh.mesh_functions.partitioner
+    for pid in range(2):
+        p.refine(Index(pid), PartitionMethod.OCTREE, 1)
+        fns_direct = sorted(int(f) for f in p.functions_in_partition(Index(pid)))
+        fns_via_path = sorted(int(f) for f in p.functions_at_path([pid]))
+        assert fns_via_path == fns_direct
+
+
+# ===========================================================================
+# Hierarchical partitioning — two-level tree
+# ===========================================================================
+
+def test_partitioner_two_level_tree_depth_2_node_accessible():
+    """Build a two-level tree and reach the grandchild via node_at_path([pid0, 0])."""
+    mesh = _two_parallel_lines_mesh(Real(1.0), 2, PartitionMethod.OCTREE)
+    p = mesh.mesh_functions.partitioner
+    child0 = p.refine(Index(0), PartitionMethod.OCTREE, 1)
+    grandchild = child0.refine(Index(0), PartitionMethod.OCTREE, 1)
+    assert p.node_at_path([0, 0]) is grandchild
+
+
+def test_partitioner_two_level_tree_grandchild_local_functions_subset():
+    """Grandchild local_function_indices is a subset of the root's."""
+    mesh = _two_parallel_lines_mesh(Real(1.0), 2, PartitionMethod.OCTREE)
+    p = mesh.mesh_functions.partitioner
+    child0 = p.refine(Index(0), PartitionMethod.OCTREE, 1)
+    child0.refine(Index(0), PartitionMethod.OCTREE, 1)
+    root_fns = set(int(f) for f in p.local_function_indices)
+    grandchild_fns = set(int(f) for f in p.functions_at_path([0, 0]))
+    assert grandchild_fns.issubset(root_fns)
+
+
+def test_partitioner_two_level_tree_coverage_at_depth_1():
+    """After refining all partitions, depth-1 nodes collectively cover root exactly."""
+    mesh = _rectangle_mesh(Real(1.0), 4, PartitionMethod.OCTREE)
+    p = mesh.mesh_functions.partitioner
+    for pid in range(4):
+        p.refine(Index(pid), PartitionMethod.OCTREE, 1)
+    root_fns = sorted(int(f) for f in p.local_function_indices)
+    all_depth1 = []
+    for pid in range(4):
+        all_depth1.extend(int(f) for f in p.functions_at_path([pid]))
+    assert sorted(all_depth1) == root_fns
+
+
+def test_partitioner_two_level_tree_coverage_at_depth_2():
+    """After two levels of refinement, depth-2 nodes collectively cover root."""
+    mesh = _rectangle_mesh(Real(1.0), 4, PartitionMethod.OCTREE)
+    p = mesh.mesh_functions.partitioner
+    for pid in range(4):
+        child = p.refine(Index(pid), PartitionMethod.OCTREE, 1)
+        child.refine(Index(0), PartitionMethod.OCTREE, 1)
+    root_fns = sorted(int(f) for f in p.local_function_indices)
+    all_depth2 = []
+    for pid in range(4):
+        all_depth2.extend(int(f) for f in p.functions_at_path([pid, 0]))
+    assert sorted(all_depth2) == root_fns
+
+
+def test_partitioner_two_level_tree_partition_of_function_global_indices():
+    """partition_of_function works with global indices at every level."""
+    mesh = _rectangle_mesh(Real(1.0), 4, PartitionMethod.OCTREE)
+    p = mesh.mesh_functions.partitioner
+    for pid in range(4):
+        p.refine(Index(pid), PartitionMethod.OCTREE, 1)
+    # Every function reachable from root should also be reachable from its child.
+    n_fns = len(mesh.mesh_functions.function_subsegment_pairs)
+    for fi in range(n_fns):
+        root_pid = int(p.partition_of_function(Index(fi)))
+        child = p.child(Index(root_pid))
+        assert child is not None
+        child_pid = int(child.partition_of_function(Index(fi)))
+        assert child_pid == 0  # single-partition children always assign to 0
+
+
+# ===========================================================================
+# Dense mesh (h=0.01) — OCTREE hierarchical partitioning
+#
+# two_parallel_lines h=0.01:
+#   Line A y=0: (0,0,0)->(1,0,0)->(2,0,0)
+#   Line B y=1: (0,1,0)->(1,1,0)->(2,1,0)
+#   With reltol=0.01 (norm-scaled), vertices near x>1 merge; actual function
+#   count is 285 (not 2*199=398).
+#
+# rectangle h=0.01:
+#   4 sides, each length 1.0 with 100 subsegments.
+#   All vertices lie within [0,1]^2 so merging does not occur; 400 functions.
+# ===========================================================================
+
+def test_octree_hierarchy_dense_parallel_lines_function_count():
+    """h=0.01: two_parallel_lines produces 285 functions (vertex merging past x≈1)."""
+    mesh = _two_parallel_lines_mesh(Real(0.01), 1, PartitionMethod.OCTREE)
+    p = mesh.mesh_functions.partitioner
+    assert p.partition_count == 1
+    assert len(p.local_function_indices) == 285
+
+
+def test_octree_hierarchy_dense_rectangle_function_count():
+    """h=0.01: rectangle produces 400 functions (no vertex merging in [0,1]^2)."""
+    mesh = _rectangle_mesh(Real(0.01), 1, PartitionMethod.OCTREE)
+    p = mesh.mesh_functions.partitioner
+    assert p.partition_count == 1
+    assert len(p.local_function_indices) == 400
+
+
+def test_octree_hierarchy_dense_parallel_lines_n_parts_4_coverage():
+    """h=0.01, n_parts=4: four partitions collectively cover all 285 functions."""
+    mesh = _two_parallel_lines_mesh(Real(0.01), 4, PartitionMethod.OCTREE)
+    p = mesh.mesh_functions.partitioner
+    assert p.partition_count == 4
+    all_fns = []
+    for pid in range(4):
+        all_fns.extend(int(f) for f in p.functions_in_partition(Index(pid)))
+    assert sorted(all_fns) == list(range(285))
+
+
+def test_octree_hierarchy_dense_parallel_lines_refine_child_local_functions():
+    """h=0.01: child.local_function_indices == parent.functions_in_partition(pid)
+    for each partition after octree split at n_parts=4."""
+    mesh = _two_parallel_lines_mesh(Real(0.01), 4, PartitionMethod.OCTREE)
+    p = mesh.mesh_functions.partitioner
+    for pid in range(4):
+        parent_fns = sorted(int(f) for f in p.functions_in_partition(Index(pid)))
+        child = p.refine(Index(pid), PartitionMethod.OCTREE, 1)
+        assert sorted(int(f) for f in child.local_function_indices) == parent_fns
+
+
+def test_octree_hierarchy_dense_parallel_lines_coverage_depth_1():
+    """h=0.01: depth-1 nodes after refining all 4 partitions cover root exactly."""
+    mesh = _two_parallel_lines_mesh(Real(0.01), 4, PartitionMethod.OCTREE)
+    p = mesh.mesh_functions.partitioner
+    for pid in range(4):
+        p.refine(Index(pid), PartitionMethod.OCTREE, 1)
+    root_fns = sorted(int(f) for f in p.local_function_indices)
+    all_depth1 = []
+    for pid in range(4):
+        all_depth1.extend(int(f) for f in p.functions_at_path([pid]))
+    assert sorted(all_depth1) == root_fns
+
+
+def test_octree_hierarchy_dense_parallel_lines_coverage_depth_2():
+    """h=0.01: two-level octree refinement; depth-2 nodes cover root exactly."""
+    mesh = _two_parallel_lines_mesh(Real(0.01), 4, PartitionMethod.OCTREE)
+    p = mesh.mesh_functions.partitioner
+    for pid in range(4):
+        child = p.refine(Index(pid), PartitionMethod.OCTREE, 1)
+        child.refine(Index(0), PartitionMethod.OCTREE, 1)
+    root_fns = sorted(int(f) for f in p.local_function_indices)
+    all_depth2 = []
+    for pid in range(4):
+        all_depth2.extend(int(f) for f in p.functions_at_path([pid, 0]))
+    assert sorted(all_depth2) == root_fns
+
+
+def test_octree_hierarchy_dense_parallel_lines_partition_of_function_depth_1():
+    """h=0.01: partition_of_function accepts global indices at root and depth-1 children."""
+    mesh = _two_parallel_lines_mesh(Real(0.01), 4, PartitionMethod.OCTREE)
+    p = mesh.mesh_functions.partitioner
+    for pid in range(4):
+        p.refine(Index(pid), PartitionMethod.OCTREE, 1)
+    n_fns = len(mesh.mesh_functions.function_subsegment_pairs)
+    for fi in range(n_fns):
+        root_pid = int(p.partition_of_function(Index(fi)))
+        child = p.child(Index(root_pid))
+        assert child is not None
+        assert int(child.partition_of_function(Index(fi))) == 0
+
+
+def test_octree_hierarchy_dense_rectangle_n_parts_4_coverage():
+    """h=0.01, rectangle n_parts=4: four partitions cover all 400 functions."""
+    mesh = _rectangle_mesh(Real(0.01), 4, PartitionMethod.OCTREE)
+    p = mesh.mesh_functions.partitioner
+    assert p.partition_count == 4
+    all_fns = []
+    for pid in range(4):
+        all_fns.extend(int(f) for f in p.functions_in_partition(Index(pid)))
+    assert sorted(all_fns) == list(range(400))
+
+
+def test_octree_hierarchy_dense_rectangle_refine_child_local_functions():
+    """h=0.01, rectangle: child.local_function_indices matches parent partition."""
+    mesh = _rectangle_mesh(Real(0.01), 4, PartitionMethod.OCTREE)
+    p = mesh.mesh_functions.partitioner
+    for pid in range(4):
+        parent_fns = sorted(int(f) for f in p.functions_in_partition(Index(pid)))
+        child = p.refine(Index(pid), PartitionMethod.OCTREE, 1)
+        assert sorted(int(f) for f in child.local_function_indices) == parent_fns
+
+
+def test_octree_hierarchy_dense_rectangle_coverage_depth_1():
+    """h=0.01, rectangle: depth-1 nodes cover root exactly."""
+    mesh = _rectangle_mesh(Real(0.01), 4, PartitionMethod.OCTREE)
+    p = mesh.mesh_functions.partitioner
+    for pid in range(4):
+        p.refine(Index(pid), PartitionMethod.OCTREE, 1)
+    root_fns = sorted(int(f) for f in p.local_function_indices)
+    all_depth1 = []
+    for pid in range(4):
+        all_depth1.extend(int(f) for f in p.functions_at_path([pid]))
+    assert sorted(all_depth1) == root_fns
+
+
+def test_octree_hierarchy_dense_rectangle_coverage_depth_2():
+    """h=0.01, rectangle: two-level refinement; depth-2 nodes cover root exactly."""
+    mesh = _rectangle_mesh(Real(0.01), 4, PartitionMethod.OCTREE)
+    p = mesh.mesh_functions.partitioner
+    for pid in range(4):
+        child = p.refine(Index(pid), PartitionMethod.OCTREE, 1)
+        child.refine(Index(0), PartitionMethod.OCTREE, 1)
+    root_fns = sorted(int(f) for f in p.local_function_indices)
+    all_depth2 = []
+    for pid in range(4):
+        all_depth2.extend(int(f) for f in p.functions_at_path([pid, 0]))
+    assert sorted(all_depth2) == root_fns
+
+
+def test_octree_hierarchy_dense_rectangle_partition_of_function_depth_1():
+    """h=0.01, rectangle: global indices valid in root and all depth-1 children."""
+    mesh = _rectangle_mesh(Real(0.01), 4, PartitionMethod.OCTREE)
+    p = mesh.mesh_functions.partitioner
+    for pid in range(4):
+        p.refine(Index(pid), PartitionMethod.OCTREE, 1)
+    n_fns = len(mesh.mesh_functions.function_subsegment_pairs)
+    for fi in range(n_fns):
+        root_pid = int(p.partition_of_function(Index(fi)))
+        child = p.child(Index(root_pid))
+        assert child is not None
+        assert int(child.partition_of_function(Index(fi))) == 0
+
+
+# ===========================================================================
+# Dense mesh (h=0.01) — KAHIP hierarchical partitioning
+# ===========================================================================
+
+def test_kahip_hierarchy_dense_parallel_lines_n_parts_4_coverage():
+    """h=0.01, KaHIP n_parts=4: coverage and invertibility over 285 functions."""
+    pytest.importorskip('kahip')
+    mesh = _two_parallel_lines_mesh(Real(0.01), 4, PartitionMethod.KAHIP)
+    p = mesh.mesh_functions.partitioner
+    assert p.partition_count == 4
+    n_fns = len(mesh.mesh_functions.function_subsegment_pairs)
+    assert n_fns == 285
+    all_fns = []
+    for pid in range(4):
+        all_fns.extend(int(f) for f in p.functions_in_partition(Index(pid)))
+    assert sorted(all_fns) == list(range(n_fns))
+    for fi in range(n_fns):
+        pid = int(p.partition_of_function(Index(fi)))
+        assert Index(fi) in p.functions_in_partition(Index(pid))
+
+
+def test_kahip_hierarchy_dense_parallel_lines_refine_child_local_functions():
+    """h=0.01, KaHIP: child.local_function_indices matches parent partition exactly."""
+    pytest.importorskip('kahip')
+    mesh = _two_parallel_lines_mesh(Real(0.01), 4, PartitionMethod.KAHIP)
+    p = mesh.mesh_functions.partitioner
+    for pid in range(4):
+        parent_fns = sorted(int(f) for f in p.functions_in_partition(Index(pid)))
+        child = p.refine(Index(pid), PartitionMethod.KAHIP, 2)
+        assert sorted(int(f) for f in child.local_function_indices) == parent_fns
+
+
+def test_kahip_hierarchy_dense_parallel_lines_refine_child_coverage():
+    """h=0.01, KaHIP: child's two sub-partitions collectively cover the parent partition."""
+    pytest.importorskip('kahip')
+    mesh = _two_parallel_lines_mesh(Real(0.01), 4, PartitionMethod.KAHIP)
+    p = mesh.mesh_functions.partitioner
+    for pid in range(4):
+        parent_fns = sorted(int(f) for f in p.functions_in_partition(Index(pid)))
+        child = p.refine(Index(pid), PartitionMethod.KAHIP, 2)
+        child_all = []
+        for cpid in range(2):
+            child_all.extend(int(f) for f in child.functions_in_partition(Index(cpid)))
+        assert sorted(child_all) == parent_fns
+
+
+def test_kahip_hierarchy_dense_parallel_lines_coverage_depth_2():
+    """h=0.01, KaHIP: two-level tree; depth-2 nodes collectively cover root."""
+    pytest.importorskip('kahip')
+    mesh = _two_parallel_lines_mesh(Real(0.01), 4, PartitionMethod.KAHIP)
+    p = mesh.mesh_functions.partitioner
+    for pid in range(4):
+        child = p.refine(Index(pid), PartitionMethod.KAHIP, 2)
+        for cpid in range(2):
+            child.refine(Index(cpid), PartitionMethod.KAHIP, 1)
+    root_fns = sorted(int(f) for f in p.local_function_indices)
+    all_depth2 = []
+    for pid in range(4):
+        for cpid in range(2):
+            all_depth2.extend(int(f) for f in p.functions_at_path([pid, cpid]))
+    assert sorted(all_depth2) == root_fns
+
+
+def test_kahip_hierarchy_dense_rectangle_n_parts_4_coverage():
+    """h=0.01, KaHIP n_parts=4: coverage and invertibility over 400 functions."""
+    pytest.importorskip('kahip')
+    mesh = _rectangle_mesh(Real(0.01), 4, PartitionMethod.KAHIP)
+    p = mesh.mesh_functions.partitioner
+    assert p.partition_count == 4
+    n_fns = len(mesh.mesh_functions.function_subsegment_pairs)
+    assert n_fns == 400
+    all_fns = []
+    for pid in range(4):
+        all_fns.extend(int(f) for f in p.functions_in_partition(Index(pid)))
+    assert sorted(all_fns) == list(range(n_fns))
+    for fi in range(n_fns):
+        pid = int(p.partition_of_function(Index(fi)))
+        assert Index(fi) in p.functions_in_partition(Index(pid))
+
+
+def test_kahip_hierarchy_dense_rectangle_refine_child_local_functions():
+    """h=0.01, KaHIP rectangle: child.local_function_indices matches parent partition."""
+    pytest.importorskip('kahip')
+    mesh = _rectangle_mesh(Real(0.01), 4, PartitionMethod.KAHIP)
+    p = mesh.mesh_functions.partitioner
+    for pid in range(4):
+        parent_fns = sorted(int(f) for f in p.functions_in_partition(Index(pid)))
+        child = p.refine(Index(pid), PartitionMethod.KAHIP, 2)
+        assert sorted(int(f) for f in child.local_function_indices) == parent_fns
+
+
+def test_kahip_hierarchy_dense_rectangle_refine_child_coverage():
+    """h=0.01, KaHIP rectangle: child's two sub-partitions cover the parent partition."""
+    pytest.importorskip('kahip')
+    mesh = _rectangle_mesh(Real(0.01), 4, PartitionMethod.KAHIP)
+    p = mesh.mesh_functions.partitioner
+    for pid in range(4):
+        parent_fns = sorted(int(f) for f in p.functions_in_partition(Index(pid)))
+        child = p.refine(Index(pid), PartitionMethod.KAHIP, 2)
+        child_all = []
+        for cpid in range(2):
+            child_all.extend(int(f) for f in child.functions_in_partition(Index(cpid)))
+        assert sorted(child_all) == parent_fns
+
+
+def test_kahip_hierarchy_dense_rectangle_coverage_depth_2():
+    """h=0.01, KaHIP rectangle: two-level tree; depth-2 nodes collectively cover root."""
+    pytest.importorskip('kahip')
+    mesh = _rectangle_mesh(Real(0.01), 4, PartitionMethod.KAHIP)
+    p = mesh.mesh_functions.partitioner
+    for pid in range(4):
+        child = p.refine(Index(pid), PartitionMethod.KAHIP, 2)
+        for cpid in range(2):
+            child.refine(Index(cpid), PartitionMethod.KAHIP, 1)
+    root_fns = sorted(int(f) for f in p.local_function_indices)
+    all_depth2 = []
+    for pid in range(4):
+        for cpid in range(2):
+            all_depth2.extend(int(f) for f in p.functions_at_path([pid, cpid]))
+    assert sorted(all_depth2) == root_fns
