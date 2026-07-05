@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # Copyright (c) 2023, Joseph M. Rutherford
 
+from __future__ import annotations
+
 from enum import Enum
 from typing import TYPE_CHECKING
 
@@ -49,8 +51,9 @@ def _build_adjacency_list(
         for i in range(len(fn_list)):
             for j in range(i + 1, len(fn_list)):
                 fi, fj = fn_list[i], fn_list[j]
-                adj[fi].add(fj)
-                adj[fj].add(fi)
+                if fi != fj:  # skip self-loops from double-registered shared vertices
+                    adj[fi].add(fj)
+                    adj[fj].add(fi)
 
     return [sorted(neighbors) for neighbors in adj]
 
@@ -83,6 +86,10 @@ class Partitioner:
         One of the :class:`PartitionMethod` strategies.
     n_parts:
         Desired number of partitions.  Must be >= 1.
+    local_function_indices:
+        Tuple of global function indices that this partition node covers.  When
+        ``None`` (the default for the root node) all functions in
+        *mesh_functions* are included.
     """
 
     def __init__(
@@ -91,6 +98,7 @@ class Partitioner:
         mesh_functions: "MeshFunctions",
         method: PartitionMethod,
         n_parts: int,
+        local_function_indices: tuple[Index, ...] | None = None,
     ) -> None:
         n_parts = int(n_parts)
         if n_parts < 1:
@@ -98,15 +106,31 @@ class Partitioner:
 
         self._method = PartitionMethod(method)
         self._n_parts = n_parts
+        # Keep references for child construction via refine().
+        self._mesh = mesh
+        self._mesh_functions = mesh_functions
 
         subseg_pairs = mesh.subsegment_point_pairs
-        pairs = mesh_functions.function_subsegment_pairs
-        n_functions = len(pairs)
+        all_pairs = mesh_functions.function_subsegment_pairs
+
+        if local_function_indices is None:
+            local_function_indices = tuple(Index(i) for i in range(len(all_pairs)))
+
+        self._local_function_indices: tuple[Index, ...] = local_function_indices
+        n_local = len(local_function_indices)
+
+        # Fast lookup: global function index -> position in _local_function_indices.
+        self._local_index_map: dict[int, int] = {
+            int(fi): pos for pos, fi in enumerate(local_function_indices)
+        }
+
+        # Restrict the subsegment-pair list to local functions only.
+        local_pairs = [all_pairs[int(fi)] for fi in local_function_indices]
 
         if method == PartitionMethod.OCTREE:
-            assignment = self._build_octree(mesh, pairs, subseg_pairs, n_parts)
+            assignment = self._build_octree(mesh, local_pairs, subseg_pairs, n_parts)
         elif method == PartitionMethod.KAHIP:
-            assignment = self._build_kahip(pairs, subseg_pairs, n_parts, n_functions)
+            assignment = self._build_kahip(local_pairs, subseg_pairs, n_parts, n_local)
         else:
             raise Unrecoverable('Partitioner: unknown method')
 
@@ -114,14 +138,18 @@ class Partitioner:
             Index(p) for p in assignment
         )
 
-        # Build reverse mapping: partition_id -> sorted tuple of function indices.
+        # Build reverse mapping: partition_id -> sorted tuple of GLOBAL function indices.
         buckets: dict[int, list[int]] = {}
-        for fn_idx, part_id in enumerate(assignment):
-            buckets.setdefault(int(part_id), []).append(fn_idx)
+        for local_pos, part_id in enumerate(assignment):
+            global_fi = int(local_function_indices[local_pos])
+            buckets.setdefault(int(part_id), []).append(global_fi)
         self._partition_to_functions: tuple[tuple[Index, ...], ...] = tuple(
             tuple(Index(fi) for fi in sorted(buckets.get(pid, [])))
             for pid in range(n_parts)
         )
+
+        # Child partitioners — one slot per partition, filled lazily by refine().
+        self._children: list[Partitioner | None] = [None] * n_parts
 
     # ------------------------------------------------------------------
     # Build strategies
@@ -228,6 +256,11 @@ class Partitioner:
         if n_functions == 0:
             return []
 
+        # kaffpa requires n_parts >= 2; the trivial single-partition case is
+        # handled here to avoid passing n_parts=1 into the C extension.
+        if n_parts == 1:
+            return [0] * n_functions
+
         class _Proxy:
             def __init__(self, p):
                 self.function_subsegment_pairs = p
@@ -257,6 +290,24 @@ class Partitioner:
     # ------------------------------------------------------------------
     # Immutable properties
     # ------------------------------------------------------------------
+
+    @property
+    def local_function_indices(self) -> list[Index]:
+        """Copy of the global function indices covered by this partition node."""
+        return list(self._local_function_indices)
+
+    @local_function_indices.setter
+    def local_function_indices(self, value) -> None:
+        raise NeverImplement('Partitioner local_function_indices is immutable')
+
+    @property
+    def children(self) -> tuple[Partitioner | None, ...]:
+        """Tuple of child partitioners, one per partition (None until refined)."""
+        return tuple(self._children)
+
+    @children.setter
+    def children(self, value) -> None:
+        raise NeverImplement('Partitioner children is immutable')
 
     @property
     def method(self) -> PartitionMethod:
@@ -293,6 +344,121 @@ class Partitioner:
     @partition_assignment.setter
     def partition_assignment(self, value) -> None:
         raise NeverImplement('Partitioner partition_assignment is immutable')
+
+    # ------------------------------------------------------------------
+    # Tree API
+    # ------------------------------------------------------------------
+
+    def child(self, partition_id: Index) -> Partitioner | None:
+        """Return the child :class:`Partitioner` for *partition_id*, or ``None``
+        if that partition has not yet been refined.
+
+        Raises
+        ------
+        Unrecoverable
+            If *partition_id* is out of range.
+        """
+        pid = int(partition_id)
+        if pid < 0 or pid >= self._n_parts:
+            raise Unrecoverable(
+                ''.join([
+                    'Partitioner: partition_id ', str(pid),
+                    ' is out of range for ', str(self._n_parts), ' partitions',
+                ])
+            )
+        return self._children[pid]
+
+    def refine(
+        self,
+        partition_id: Index,
+        method: PartitionMethod,
+        n_parts: int,
+    ) -> Partitioner:
+        """Create and attach a child :class:`Partitioner` for *partition_id*.
+
+        The child covers exactly the global function indices currently assigned
+        to *partition_id* at this node and partitions them into *n_parts*
+        sub-groups using *method*.  Any previously attached child for
+        *partition_id* is replaced.
+
+        Parameters
+        ----------
+        partition_id:
+            Zero-based partition identifier in ``[0, partition_count)``.
+        method:
+            Partitioning strategy for the child node.
+        n_parts:
+            Number of sub-partitions in the child node.  Must be >= 1.
+
+        Returns
+        -------
+        Partitioner
+            The newly created child partitioner.
+
+        Raises
+        ------
+        Unrecoverable
+            If *partition_id* is out of range or *n_parts* < 1.
+        """
+        pid = int(partition_id)
+        if pid < 0 or pid >= self._n_parts:
+            raise Unrecoverable(
+                ''.join([
+                    'Partitioner: partition_id ', str(pid),
+                    ' is out of range for ', str(self._n_parts), ' partitions',
+                ])
+            )
+        child_indices = self._partition_to_functions[pid]
+        child = Partitioner(
+            self._mesh,
+            self._mesh_functions,
+            method,
+            n_parts,
+            child_indices,
+        )
+        self._children[pid] = child
+        return child
+
+    def node_at_path(self, path: list[int]) -> Partitioner:
+        """Follow *path* from this node and return the reached :class:`Partitioner`.
+
+        *path* is a sequence of partition IDs, one per level:  ``path[0]``
+        selects a child of this node, ``path[1]`` selects a grandchild, and so
+        on.  An empty *path* returns ``self``.
+
+        Raises
+        ------
+        Unrecoverable
+            If any step in *path* leads to an unrefined (``None``) child or an
+            out-of-range partition ID.
+        """
+        node: Partitioner = self
+        for depth, step in enumerate(path):
+            c = node.child(Index(step))
+            if c is None:
+                raise Unrecoverable(
+                    ''.join([
+                        'Partitioner: path has no child at depth ', str(depth),
+                        ', partition_id ', str(step),
+                    ])
+                )
+            node = c
+        return node
+
+    def functions_at_path(self, path: list[int]) -> list[Index]:
+        """Return the global function indices held at the node reached by *path*.
+
+        Equivalent to ``node_at_path(path).local_function_indices`` but more
+        convenient for bulk lookup across levels.
+
+        An empty *path* returns this node's :attr:`local_function_indices`.
+
+        Raises
+        ------
+        Unrecoverable
+            If the path is invalid (see :meth:`node_at_path`).
+        """
+        return self.node_at_path(path).local_function_indices
 
     # ------------------------------------------------------------------
     # Query API
@@ -335,12 +501,12 @@ class Partitioner:
             If *function_index* is out of range.
         """
         fi = int(function_index)
-        if fi < 0 or fi >= len(self._partition_assignment):
+        if fi not in self._local_index_map:
             raise Unrecoverable(
                 ''.join([
                     'Partitioner: function_index ', str(fi),
-                    ' is out of range for ', str(len(self._partition_assignment)),
-                    ' functions',
+                    ' is not in this partition node (',
+                    str(len(self._local_function_indices)), ' local functions)',
                 ])
             )
-        return self._partition_assignment[fi]
+        return self._partition_assignment[self._local_index_map[fi]]
