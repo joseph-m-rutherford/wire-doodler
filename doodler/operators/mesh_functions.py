@@ -23,7 +23,7 @@ class MeshFunctions:
         self,
         mesh: "WireMesh3D",
         method: PartitionMethod = PartitionMethod.OCTREE,
-        n_parts: int = 1,
+        max_n_parts: int = 1,
     ) -> None:
         point_pairs = mesh.subsegment_point_pairs
 
@@ -60,7 +60,7 @@ class MeshFunctions:
         pairs = sorted(pair_set, key=lambda pair: (int(pair[0]), int(pair[1])))
         self._function_subsegment_pairs: tuple[tuple[Index, Index], ...] = tuple(pairs)
 
-        self._partitioner = Partitioner(mesh, self, method, n_parts)
+        self._partitioner = Partitioner(mesh, self, method, max_n_parts)
 
     @property
     def partitioner(self) -> Partitioner:

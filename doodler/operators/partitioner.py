@@ -60,21 +60,20 @@ def _build_adjacency_list(
 
 class Partitioner:
     """Partition the function index set of a :class:`~doodler.operators.MeshFunctions`
-    into *n_parts* non-overlapping, collectively exhaustive groups.
+    into at most *max_n_parts* non-overlapping, collectively exhaustive groups.
 
-    The partition can be built using one of three strategies:
+    The partition can be built using one of two strategies:
 
     * :attr:`PartitionMethod.OCTREE` — purely spatial.  Each function is
       represented by its shared vertex (the single vertex where the two
-      subsegments of the function pair meet).  The finest octree depth that
-      produces exactly *n_parts* occupied cells is selected; if no such depth
-      exists, :class:`~doodler.errors.Unrecoverable` is raised.
+      subsegments of the function pair meet).  The finest (deepest) octree
+      depth that produces at most *max_n_parts* occupied cells is selected.
+      The actual partition count (≤ *max_n_parts*) depends on the geometry.
 
     * :attr:`PartitionMethod.KAHIP` — graph-based via ``kahip`` (KaFFPa).
       Raises :class:`~doodler.errors.Recoverable` if ``kahip`` is not
-      installed (``pip install kahip``).  When *n_parts* exceeds the number
-      of connected components the result may contain fewer than *n_parts*
-      non-empty partitions (documented behaviour, not an error).
+      installed (``pip install kahip``).  The actual partition count may be
+      less than *max_n_parts* if the graph has fewer connected components.
 
     Parameters
     ----------
@@ -84,8 +83,10 @@ class Partitioner:
         The :class:`~doodler.operators.MeshFunctions` to partition.
     method:
         One of the :class:`PartitionMethod` strategies.
-    n_parts:
-        Desired number of partitions.  Must be >= 1.
+    max_n_parts:
+        Upper bound on the number of partitions.  Must be >= 1.  The
+        actual partition count returned by :attr:`partition_count` may
+        be less than *max_n_parts* depending on the geometry.
     local_function_indices:
         Tuple of global function indices that this partition node covers.  When
         ``None`` (the default for the root node) all functions in
@@ -97,15 +98,15 @@ class Partitioner:
         mesh: "WireMesh3D",
         mesh_functions: "MeshFunctions",
         method: PartitionMethod,
-        n_parts: int,
+        max_n_parts: int,
         local_function_indices: tuple[Index, ...] | None = None,
     ) -> None:
-        n_parts = int(n_parts)
-        if n_parts < 1:
-            raise Unrecoverable('Partitioner: n_parts must be >= 1')
+        max_n_parts = int(max_n_parts)
+        if max_n_parts < 1:
+            raise Unrecoverable('Partitioner: max_n_parts must be >= 1')
 
+        self._max_n_parts = max_n_parts
         self._method = PartitionMethod(method)
-        self._n_parts = n_parts
         # Keep references for child construction via refine().
         self._mesh = mesh
         self._mesh_functions = mesh_functions
@@ -128,11 +129,21 @@ class Partitioner:
         local_pairs = [all_pairs[int(fi)] for fi in local_function_indices]
 
         if method == PartitionMethod.OCTREE:
-            assignment = self._build_octree(mesh, local_pairs, subseg_pairs, n_parts)
+            assignment = self._build_octree(mesh, local_pairs, subseg_pairs, max_n_parts)
         elif method == PartitionMethod.KAHIP:
-            assignment = self._build_kahip(local_pairs, subseg_pairs, n_parts, n_local)
+            assignment = self._build_kahip(local_pairs, subseg_pairs, max_n_parts, n_local)
         else:
             raise Unrecoverable('Partitioner: unknown method')
+
+        # Compact partition IDs to consecutive range 0..actual_count-1.
+        # OCTREE already produces consecutive IDs; KAHIP may have gaps if some
+        # requested partitions end up empty.
+        used_ids = sorted(set(assignment))
+        if used_ids and used_ids != list(range(len(used_ids))):
+            id_map = {old: new for new, old in enumerate(used_ids)}
+            assignment = [id_map[a] for a in assignment]
+        # Always maintain at least one partition slot (for the empty-function case).
+        actual_count = max(1, len(used_ids))
 
         self._partition_assignment: tuple[Index, ...] = tuple(
             Index(p) for p in assignment
@@ -145,11 +156,14 @@ class Partitioner:
             buckets.setdefault(int(part_id), []).append(global_fi)
         self._partition_to_functions: tuple[tuple[Index, ...], ...] = tuple(
             tuple(Index(fi) for fi in sorted(buckets.get(pid, [])))
-            for pid in range(n_parts)
+            for pid in range(actual_count)
         )
 
+        # _n_parts is the ACTUAL partition count (≤ max_n_parts).
+        self._n_parts = actual_count
+
         # Child partitioners — one slot per partition, filled lazily by refine().
-        self._children: list[Partitioner | None] = [None] * n_parts
+        self._children: list[Partitioner | None] = [None] * actual_count
 
     # ------------------------------------------------------------------
     # Build strategies
@@ -173,9 +187,14 @@ class Partitioner:
         mesh: "WireMesh3D",
         pairs: list[tuple[Index, Index]],
         subseg_pairs: list[tuple[Index, Index]],
-        n_parts: int,
+        max_n_parts: int,
     ) -> list[int]:
-        """Partition functions spatially by their shared-vertex Morton key."""
+        """Partition functions spatially by their shared-vertex Morton key.
+
+        Finds the finest (deepest) octree depth where the number of occupied
+        cells does not exceed *max_n_parts*.  The actual partition count
+        (≤ *max_n_parts*) is determined by the geometry.
+        """
         n_functions = len(pairs)
         if n_functions == 0:
             return []
@@ -208,32 +227,21 @@ class Partitioner:
 
         fine_keys = [octree.morton_key(c) for c in shared_coords]
 
-        # Find the shallowest depth where the number of occupied cells == n_parts.
-        # Coarsen by right-shifting fine_key by 3*(max_depth - d) bits.
-        chosen_shift = None
-        for d in range(max_depth + 1):
+        # Find the finest (deepest) depth where occupied cells <= max_n_parts.
+        # Iterate from finest (d=max_depth, shift=0) to coarsest (d=0, shift=3*max_depth).
+        # d=0 always yields 1 occupied cell, so the loop always terminates.
+        chosen_shift: int = 3 * max_depth  # fallback: depth 0, 1 cell
+        occupied_keys: set[int] = {k >> (3 * max_depth) for k in fine_keys}
+        for d in range(max_depth, -1, -1):
             shift = 3 * (max_depth - d)
             coarse_keys = {k >> shift for k in fine_keys}
-            if len(coarse_keys) == n_parts:
+            if len(coarse_keys) <= max_n_parts:
                 chosen_shift = shift
+                occupied_keys = coarse_keys
                 break
 
-        if chosen_shift is None:
-            raise Unrecoverable(
-                ''.join([
-                    'Partitioner: octree partitioning cannot produce exactly ',
-                    str(n_parts),
-                    ' partitions for this geometry (achievable non-empty cell counts: ',
-                    str(sorted({
-                        len({k >> (3 * (max_depth - d)) for k in fine_keys})
-                        for d in range(max_depth + 1)
-                    })),
-                    ')',
-                ])
-            )
-
         # Assign deterministic partition IDs by sorting occupied coarse keys.
-        coarse_keys_used = sorted({k >> chosen_shift for k in fine_keys})
+        coarse_keys_used = sorted(occupied_keys)
         key_to_part: dict[int, int] = {key: pid for pid, key in enumerate(coarse_keys_used)}
 
         return [key_to_part[k >> chosen_shift] for k in fine_keys]
@@ -242,7 +250,7 @@ class Partitioner:
     def _build_kahip(
         pairs: list[tuple[Index, Index]],
         subseg_pairs: list[tuple[Index, Index]],
-        n_parts: int,
+        max_n_parts: int,
         n_functions: int,
     ) -> list[int]:
         """Partition functions using KaHIP (KaFFPa) graph partitioning."""
@@ -257,8 +265,8 @@ class Partitioner:
             return []
 
         # kaffpa requires n_parts >= 2; the trivial single-partition case is
-        # handled here to avoid passing n_parts=1 into the C extension.
-        if n_parts == 1:
+        # handled here to avoid passing max_n_parts=1 into the C extension.
+        if max_n_parts == 1:
             return [0] * n_functions
 
         class _Proxy:
@@ -279,7 +287,7 @@ class Partitioner:
 
         _edgecut, blocks = kahip.kaffpa(
             vwgt, xadj, adjcwgt, adjncy,
-            n_parts,
+            max_n_parts,
             0.03,   # imbalance
             1,      # suppress_output
             0,      # seed
@@ -319,17 +327,17 @@ class Partitioner:
         raise NeverImplement('Partitioner method is immutable')
 
     @property
-    def n_parts(self) -> int:
-        """Number of partitions requested."""
-        return self._n_parts
+    def max_n_parts(self) -> int:
+        """Upper bound on the number of partitions requested."""
+        return self._max_n_parts
 
-    @n_parts.setter
-    def n_parts(self, value) -> None:
-        raise NeverImplement('Partitioner n_parts is immutable')
+    @max_n_parts.setter
+    def max_n_parts(self, value) -> None:
+        raise NeverImplement('Partitioner max_n_parts is immutable')
 
     @property
     def partition_count(self) -> int:
-        """Number of partitions (equal to *n_parts*)."""
+        """Actual number of non-empty partitions produced (at most *max_n_parts*)."""
         return self._n_parts
 
     @partition_count.setter
@@ -372,14 +380,14 @@ class Partitioner:
         self,
         partition_id: Index,
         method: PartitionMethod,
-        n_parts: int,
+        max_n_parts: int,
     ) -> Partitioner:
         """Create and attach a child :class:`Partitioner` for *partition_id*.
 
         The child covers exactly the global function indices currently assigned
-        to *partition_id* at this node and partitions them into *n_parts*
-        sub-groups using *method*.  Any previously attached child for
-        *partition_id* is replaced.
+        to *partition_id* at this node and partitions them into at most
+        *max_n_parts* sub-groups using *method*.  Any previously attached child
+        for *partition_id* is replaced.
 
         Parameters
         ----------
@@ -387,8 +395,8 @@ class Partitioner:
             Zero-based partition identifier in ``[0, partition_count)``.
         method:
             Partitioning strategy for the child node.
-        n_parts:
-            Number of sub-partitions in the child node.  Must be >= 1.
+        max_n_parts:
+            Upper bound on sub-partitions in the child node.  Must be >= 1.
 
         Returns
         -------
@@ -398,7 +406,7 @@ class Partitioner:
         Raises
         ------
         Unrecoverable
-            If *partition_id* is out of range or *n_parts* < 1.
+            If *partition_id* is out of range or *max_n_parts* < 1.
         """
         pid = int(partition_id)
         if pid < 0 or pid >= self._n_parts:
@@ -413,7 +421,7 @@ class Partitioner:
             self._mesh,
             self._mesh_functions,
             method,
-            n_parts,
+            max_n_parts,
             child_indices,
         )
         self._children[pid] = child

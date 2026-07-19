@@ -104,7 +104,7 @@ def test_partitioner_octree_two_parts_spatially_separated():
     poly_b = [_pt(100, 0, 0), _pt(110, 0, 0), _pt(120, 0, 0)]
     # h=15.0: each length-1 segment -> 1 subsegment; each length-10 segment -> 1
     # subsegment.  Both polylines contribute exactly 1 function pair.
-    mesh = WireMesh3D({'a': poly_a, 'b': poly_b}, Real(15.0), _TOL, n_parts=2)
+    mesh = WireMesh3D({'a': poly_a, 'b': poly_b}, Real(15.0), _TOL, max_n_parts=2)
     p = mesh.mesh_functions.partitioner
     assert p.partition_count == 2
     # Each partition should contain exactly 1 function.
@@ -116,21 +116,23 @@ def test_partitioner_octree_two_parts_spatially_separated():
 # Octree: unachievable n_parts
 # ---------------------------------------------------------------------------
 
-def test_partitioner_octree_unachievable_n_parts_raises():
-    """Requesting more partitions than spatially distinct functions raises Unrecoverable."""
-    # Only 1 function pair exists; asking for 2 partitions is impossible.
+def test_partitioner_octree_max_n_parts_exceeds_distinct_cells_falls_back():
+    """When max_n_parts exceeds the number of spatially distinct cells, OCTREE
+    falls back to the coarsest depth (1 occupied cell)."""
+    # Only 1 function pair exists; asking for 3 partitions exceeds what's achievable.
     mesh_no_part = WireMesh3D(
         {'p': [_pt(0, 0, 0), _pt(1, 0, 0), _pt(2, 0, 0)]},
         Real(1.0),
         _TOL,
     )
-    with pytest.raises(Unrecoverable):
-        Partitioner(
-            mesh_no_part,
-            mesh_no_part.mesh_functions,
-            PartitionMethod.OCTREE,
-            n_parts=3,
-        )
+    p = Partitioner(
+        mesh_no_part,
+        mesh_no_part.mesh_functions,
+        PartitionMethod.OCTREE,
+        max_n_parts=3,
+    )
+    assert p.partition_count == 1
+    assert len(p.functions_in_partition(Index(0))) == 1
 
 
 # ---------------------------------------------------------------------------
@@ -150,16 +152,16 @@ def test_partitioner_octree_empty_functions_n_parts_1_succeeds():
 # Invalid n_parts
 # ---------------------------------------------------------------------------
 
-def test_partitioner_n_parts_zero_raises():
+def test_partitioner_max_n_parts_zero_raises():
     mesh = _simple_mesh(Real(1.0))
     with pytest.raises(Unrecoverable):
-        Partitioner(mesh, mesh.mesh_functions, PartitionMethod.OCTREE, n_parts=0)
+        Partitioner(mesh, mesh.mesh_functions, PartitionMethod.OCTREE, max_n_parts=0)
 
 
-def test_partitioner_n_parts_negative_raises():
+def test_partitioner_max_n_parts_negative_raises():
     mesh = _simple_mesh(Real(1.0))
     with pytest.raises(Unrecoverable):
-        Partitioner(mesh, mesh.mesh_functions, PartitionMethod.OCTREE, n_parts=-1)
+        Partitioner(mesh, mesh.mesh_functions, PartitionMethod.OCTREE, max_n_parts=-1)
 
 
 # ---------------------------------------------------------------------------
@@ -192,11 +194,11 @@ def test_partitioner_method_immutable():
         p.method = PartitionMethod.OCTREE
 
 
-def test_partitioner_n_parts_immutable():
+def test_partitioner_max_n_parts_immutable():
     mesh = _simple_mesh(Real(1.0))
     p = mesh.mesh_functions.partitioner
     with pytest.raises(NeverImplement):
-        p.n_parts = 2
+        p.max_n_parts = 2
 
 
 def test_partitioner_partition_count_immutable():
@@ -257,9 +259,9 @@ def test_wire_mesh_method_property():
     assert mesh.method == PartitionMethod.OCTREE
 
 
-def test_wire_mesh_n_parts_property():
+def test_wire_mesh_max_n_parts_property():
     mesh = _simple_mesh(Real(1.0))
-    assert mesh.n_parts == 1
+    assert mesh.max_n_parts == 1
 
 
 def test_wire_mesh_method_immutable():
@@ -268,23 +270,23 @@ def test_wire_mesh_method_immutable():
         mesh.method = PartitionMethod.OCTREE
 
 
-def test_wire_mesh_n_parts_immutable():
+def test_wire_mesh_max_n_parts_immutable():
     mesh = _simple_mesh(Real(1.0))
     with pytest.raises(NeverImplement):
-        mesh.n_parts = 2
+        mesh.max_n_parts = 2
 
 
 # ---------------------------------------------------------------------------
 # WireMesh3D n_parts kwarg validation
 # ---------------------------------------------------------------------------
 
-def test_wire_mesh_n_parts_zero_raises():
+def test_wire_mesh_max_n_parts_zero_raises():
     with pytest.raises(Unrecoverable):
         WireMesh3D(
             {'p': [_pt(0, 0, 0), _pt(1, 0, 0)]},
             Real(1.0),
             _TOL,
-            n_parts=0,
+            max_n_parts=0,
         )
 
 
@@ -307,7 +309,7 @@ def test_partitioner_kahip_not_installed_raises_recoverable():
                 mesh,
                 mesh.mesh_functions,
                 PartitionMethod.KAHIP,
-                n_parts=1,
+                max_n_parts=1,
             )
 
 
@@ -315,7 +317,7 @@ def test_partitioner_kahip_not_installed_raises_recoverable():
 # Shape-based geometry fixtures
 # ===========================================================================
 
-def _two_parallel_lines_mesh(h, n_parts, method):
+def _two_parallel_lines_mesh(h, max_n_parts, method):
     """Two parallel 3-point polylines in the XY plane:
       Line A (y=0): (0,0,0)->(1,0,0)->(2,0,0)
       Line B (y=1): (0,1,0)->(1,1,0)->(2,1,0)
@@ -327,10 +329,10 @@ def _two_parallel_lines_mesh(h, n_parts, method):
     poly_a = [_pt(0, 0, 0), _pt(1, 0, 0), _pt(2, 0, 0)]
     poly_b = [_pt(0, 1, 0), _pt(1, 1, 0), _pt(2, 1, 0)]
     return WireMesh3D({'a': poly_a, 'b': poly_b}, h, _TOL,
-                      method=method, n_parts=n_parts)
+                      method=method, max_n_parts=max_n_parts)
 
 
-def _rectangle_mesh(h, n_parts, method):
+def _rectangle_mesh(h, max_n_parts, method):
     """Unit square in the XY plane built from 4 single-segment polylines:
       bottom: (0,0,0)->(1,0,0)
       right:  (1,0,0)->(1,1,0)
@@ -345,7 +347,7 @@ def _rectangle_mesh(h, n_parts, method):
         'right':  [_pt(1, 0, 0), _pt(1, 1, 0)],
         'top':    [_pt(1, 1, 0), _pt(0, 1, 0)],
         'left':   [_pt(0, 1, 0), _pt(0, 0, 0)],
-    }, h, _TOL, method=method, n_parts=n_parts)
+    }, h, _TOL, method=method, max_n_parts=max_n_parts)
 
 
 def _shared_vertex_xyz(mesh, fn_idx):
@@ -484,18 +486,19 @@ def test_octree_rectangle_unit_n_parts_4_shared_vertices_at_corners():
     assert found == expected_corners
 
 
-def test_octree_rectangle_unit_n_parts_2_unachievable_raises():
-    """n_parts=2 is unachievable: the 4 corners always occupy 4 distinct octree
-    cells (one per XY quadrant), so no intermediate depth yields exactly 2.
+def test_octree_rectangle_unit_max_n_parts_2_falls_back_to_single_partition():
+    """max_n_parts=2 cannot be met by the 4-corner rectangle (achievable counts: 1
+    and 4); OCTREE falls back to the coarsest depth (1 occupied cell).
     """
     mesh = _rectangle_mesh(Real(1.0), 1, PartitionMethod.OCTREE)
-    with pytest.raises(Unrecoverable):
-        Partitioner(
-            mesh,
-            mesh.mesh_functions,
-            PartitionMethod.OCTREE,
-            n_parts=2,
-        )
+    p = Partitioner(
+        mesh,
+        mesh.mesh_functions,
+        PartitionMethod.OCTREE,
+        max_n_parts=2,
+    )
+    assert p.partition_count == 1
+    assert len(p.functions_in_partition(Index(0))) == 4
 
 
 # ===========================================================================
@@ -545,11 +548,14 @@ def test_kahip_rectangle_unit_n_parts_2_coverage_and_invertibility():
 
 
 def test_kahip_rectangle_unit_n_parts_4_coverage_and_invertibility():
-    """KaHIP 4-way partition of 4-function rectangle: coverage and invertibility."""
+    """KaHIP 4-way partition of 4-function rectangle: coverage and invertibility.
+    The actual partition count may be less than 4 when kaffpa produces empty groups
+    for very small graphs.
+    """
     pytest.importorskip('kahip')
     mesh = _rectangle_mesh(Real(1.0), 4, PartitionMethod.KAHIP)
     p = mesh.mesh_functions.partitioner
-    assert p.partition_count == 4
+    assert 1 <= p.partition_count <= 4
     n_fns = len(mesh.mesh_functions.function_subsegment_pairs)
     all_fns = []
     for pid in range(p.partition_count):
@@ -620,11 +626,14 @@ def test_octree_parallel_lines_half_n_parts_6_bbox_contains_shared_vertex():
             assert float(bb_max[i]) >= float(sv[i]) - float(_TOL)
 
 
-def test_octree_parallel_lines_half_n_parts_2_unachievable_raises():
-    """h=0.5, n_parts=2: achievable cell counts are {1,4,6}; 2 raises Unrecoverable."""
+def test_octree_parallel_lines_half_max_n_parts_2_falls_back_to_single_partition():
+    """h=0.5, max_n_parts=2: achievable cell counts are {1,4,6}; 2 is not achievable,
+    so OCTREE falls back to depth 0 (1 occupied cell).
+    """
     mesh = _two_parallel_lines_mesh(Real(0.5), 1, PartitionMethod.OCTREE)
-    with pytest.raises(Unrecoverable):
-        Partitioner(mesh, mesh.mesh_functions, PartitionMethod.OCTREE, n_parts=2)
+    p = Partitioner(mesh, mesh.mesh_functions, PartitionMethod.OCTREE, max_n_parts=2)
+    assert p.partition_count == 1
+    assert len(p.functions_in_partition(Index(0))) == 6
 
 
 def test_octree_parallel_lines_half_n_parts_4_function_count():
@@ -736,16 +745,19 @@ def test_octree_rectangle_half_n_parts_8_shared_vertices_cover_all_positions():
     assert found == expected
 
 
-def test_octree_rectangle_half_n_parts_2_unachievable_raises():
-    """h=0.5, n_parts=2: octree jumps 1->4->8 occupied cells; 2 never occurs."""
+def test_octree_rectangle_half_max_n_parts_2_falls_back_to_single_partition():
+    """h=0.5, max_n_parts=2: octree jumps 1->4->8 occupied cells; 2 never occurs,
+    so OCTREE falls back to depth 0 (1 occupied cell).
+    """
     mesh = _rectangle_mesh(Real(0.5), 1, PartitionMethod.OCTREE)
-    with pytest.raises(Unrecoverable):
-        Partitioner(
-            mesh,
-            mesh.mesh_functions,
-            PartitionMethod.OCTREE,
-            n_parts=2,
-        )
+    p = Partitioner(
+        mesh,
+        mesh.mesh_functions,
+        PartitionMethod.OCTREE,
+        max_n_parts=2,
+    )
+    assert p.partition_count == 1
+    assert len(p.functions_in_partition(Index(0))) == 8
 
 
 # ===========================================================================
@@ -787,13 +799,14 @@ def test_octree_parallel_lines_tenth_n_parts_1_function_count():
     assert len(p.functions_in_partition(Index(0))) == 38
 
 
-def test_octree_parallel_lines_tenth_n_parts_2_unachievable_raises():
-    """h=0.1, n_parts=2: both x and y split at octree depth 1 -> 4 occupied
-    cells; 2 is never achievable, same topology as the half case.
+def test_octree_parallel_lines_tenth_max_n_parts_2_falls_back_to_single_partition():
+    """h=0.1, max_n_parts=2: both x and y split at octree depth 1 -> 4 occupied
+    cells; 2 is never achievable, so OCTREE falls back to depth 0 (1 occupied cell).
     """
     mesh = _two_parallel_lines_mesh(Real(0.1), 1, PartitionMethod.OCTREE)
-    with pytest.raises(Unrecoverable):
-        Partitioner(mesh, mesh.mesh_functions, PartitionMethod.OCTREE, n_parts=2)
+    p = Partitioner(mesh, mesh.mesh_functions, PartitionMethod.OCTREE, max_n_parts=2)
+    assert p.partition_count == 1
+    assert len(p.functions_in_partition(Index(0))) == 38
 
 
 def test_octree_parallel_lines_tenth_n_parts_38_function_count():
@@ -854,13 +867,14 @@ def test_octree_rectangle_tenth_n_parts_1_bbox_spans_unit_square():
     assert float(bb_max[1]) == pytest.approx(1.0, abs=float(_TOL))
 
 
-def test_octree_rectangle_tenth_n_parts_2_unachievable_raises():
-    """h=0.1, n_parts=2: 4 corners always occupy all 4 XY quadrants; no depth
-    yields exactly 2 occupied cells.
+def test_octree_rectangle_tenth_max_n_parts_2_falls_back_to_single_partition():
+    """h=0.1, max_n_parts=2: 4 corners always occupy all 4 XY quadrants; no depth
+    yields at most 2 occupied cells (except depth 0), so falls back to 1 cell.
     """
     mesh = _rectangle_mesh(Real(0.1), 1, PartitionMethod.OCTREE)
-    with pytest.raises(Unrecoverable):
-        Partitioner(mesh, mesh.mesh_functions, PartitionMethod.OCTREE, n_parts=2)
+    p = Partitioner(mesh, mesh.mesh_functions, PartitionMethod.OCTREE, max_n_parts=2)
+    assert p.partition_count == 1
+    assert len(p.functions_in_partition(Index(0))) == 40
 
 
 def test_octree_rectangle_tenth_n_parts_40_function_count():
