@@ -251,7 +251,7 @@ class WireMesh3D:
         reltol: Real,
         *,
         method: PartitionMethod = PartitionMethod.OCTREE,
-        n_parts: int = 1,
+        max_n_parts: int = 1,
     ) -> None:
         h = Real(h)
         reltol = Real(reltol)
@@ -259,8 +259,8 @@ class WireMesh3D:
             raise Unrecoverable('WireMesh3D: mesh density h must be positive')
         if reltol <= Real(0):
             raise Unrecoverable('WireMesh3D: tolerance reltol must be positive')
-        if int(n_parts) < 1:
-            raise Unrecoverable('WireMesh3D: n_parts must be >= 1')
+        if int(max_n_parts) < 1:
+            raise Unrecoverable('WireMesh3D: max_n_parts must be >= 1')
 
         # Validate and deep-copy polylines; detect intra-polyline collisions.
         copied: dict[str, list[R3Vector]] = {}
@@ -371,7 +371,7 @@ class WireMesh3D:
         self._h = h
         self._reltol = reltol
         self._method = PartitionMethod(method)
-        self._n_parts = int(n_parts)
+        self._max_n_parts = int(max_n_parts)
 
         # Compute the number of uniform subsegments for each polyline segment.
         # Every segment must have at least 1 subsegment.
@@ -405,7 +405,7 @@ class WireMesh3D:
             subsegment_point_pairs.append((start_idx, end_idx))
         self._subsegment_point_pairs = subsegment_point_pairs
 
-        self._mesh_functions = MeshFunctions(self, self._method, self._n_parts)
+        self._mesh_functions = MeshFunctions(self, self._method, self._max_n_parts)
 
     @property
     def named_polylines(self) -> dict[str, list[R3Vector]]:
@@ -447,13 +447,13 @@ class WireMesh3D:
         raise NeverImplement('WireMesh3D method is immutable')
 
     @property
-    def n_parts(self) -> int:
+    def max_n_parts(self) -> int:
         '''Number of partitions requested.'''
-        return self._n_parts
+        return self._max_n_parts
 
-    @n_parts.setter
-    def n_parts(self, value) -> None:
-        raise NeverImplement('WireMesh3D n_parts is immutable')
+    @max_n_parts.setter
+    def max_n_parts(self, value) -> None:
+        raise NeverImplement('WireMesh3D max_n_parts is immutable')
 
     @property
     def named_subsegment_counts(self) -> dict[str, list[Integer]]:
@@ -569,8 +569,8 @@ class WireMesh3D:
             (remap[int(a)], remap[int(b)]) for a, b in source._subsegment_point_pairs
         ]
         instance._method = source._method
-        instance._n_parts = source._n_parts
-        instance._mesh_functions = MeshFunctions(instance, source._method, source._n_parts)
+        instance._max_n_parts = source._max_n_parts
+        instance._mesh_functions = MeshFunctions(instance, source._method, source._max_n_parts)
         return instance
 
 
