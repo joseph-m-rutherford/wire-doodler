@@ -13,17 +13,13 @@ R3Axes = npt.NDArray  # Shape (3,3) and dtype=Real, pending https://peps.python.
 TOLERANCE = Real(1e-6)
 
 def vector(x: Real, y: Real, z: Real) -> R3Vector:
-    result = R3Vector((3,),dtype=Real)
-    result[0] = x
-    result[1] = y
-    result[2] = z
-    return result
+    return np.array((x,y,z),dtype=Real)
 
 def vector_copy(xyz: any) -> R3Vector:
     '''Cast the argument into a length-3 array of floating point data'''
     result = None
     try:
-        result = R3Vector((3,),dtype=Real)
+        result = np.array((0,0,0),dtype=Real)
         input = np.asarray(xyz,dtype=Real)
         if input.shape != (3,):
             # raise Recoverable because something could be done here in the future
