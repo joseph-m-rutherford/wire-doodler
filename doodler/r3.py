@@ -19,7 +19,7 @@ def vector_copy(xyz: any) -> R3Vector:
     '''Cast the argument into a length-3 array of floating point data'''
     result = None
     try:
-        result = np.array((0,0,0),dtype=Real)
+        result = np.array((0,0,0),dtype=Real) # R3Vector type
         input = np.asarray(xyz,dtype=Real)
         if input.shape != (3,):
             # raise Recoverable because something could be done here in the future
@@ -34,7 +34,7 @@ def vector_copy(xyz: any) -> R3Vector:
 def axes3d_copy(axes: any) -> R3Axes:
     result = None
     try:
-        result = R3Axes((3,3),dtype=Real)
+        result = np.array((0,0,0,0,0,0,0,0,0),dtype=Real).reshape(3,3) # R3Axes type
         input = np.asarray(axes,dtype=Real)
         if input.shape != (3,3):
             # raise Recoverable because something could be done here in the future
