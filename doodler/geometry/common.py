@@ -4,7 +4,7 @@
 from doodler import common, errors, r3
 from doodler.common import Index, Real
 from doodler.errors import Unrecoverable, NeverImplement
-from doodler.r3 import R3Axes, R3Vector, axes3d_copy, r3vector_copy, TOLERANCE
+from doodler.r3 import R3Axes, R3Vector, axes3d_copy, vector_copy, TOLERANCE
 
 import numpy as np
 
@@ -31,7 +31,7 @@ class Shape3D:
         self._origin = None # Origin is in global coordinates
         self._axes = None # Axes are orthonormal vectors in global coordinates
         try:
-            self._origin = r3vector_copy(origin)
+            self._origin = vector_copy(origin)
             self._axes = axes3d_copy(axes)
         except Exception as e:
             raise Unrecoverable(''.join(['Failure defining 3D shape:\n',str(e)]))

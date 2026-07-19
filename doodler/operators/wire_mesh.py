@@ -9,7 +9,7 @@ from ..errors import NotYetImplemented
 from ..errors import Unrecoverable
 from ..operators.mesh_functions import MeshFunctions
 from ..operators.partitioner import PartitionMethod
-from ..r3 import R3Vector, r3vector_copy, r3vector_equality, Octree, TOLERANCE
+from ..r3 import R3Vector, vector_copy, vector_equality, Octree, TOLERANCE
 
 
 class PointRegistry:
@@ -17,7 +17,7 @@ class PointRegistry:
 
     Uses an :class:`~doodler.r3.Octree` to partition points into cells so
     that ``get_or_insert`` only checks candidates in the same octree cell
-    via :func:`~doodler.r3.r3vector_equality`.
+    via :func:`~doodler.r3.vector_equality`.
     """
 
     def __init__(self, min_xyz: R3Vector, max_xyz: R3Vector, reltol: Real) -> None:
@@ -27,12 +27,12 @@ class PointRegistry:
         self._reltol = reltol
         self._points: list[R3Vector] = []
 
-        min_xyz = r3vector_copy(min_xyz)
-        max_xyz = r3vector_copy(max_xyz)
+        min_xyz = vector_copy(min_xyz)
+        max_xyz = vector_copy(max_xyz)
 
         # Derive an absolute tolerance for the octree from a bound on the
         # largest point norm in the bounding box. This keeps the octree cell
-        # width consistent with r3vector_equality(), which scales tolerance
+        # width consistent with vector_equality(), which scales tolerance
         # by the Euclidean norm of the point rather than by its largest
         # coordinate component.
         max_point_norm = Real(max(
@@ -90,7 +90,7 @@ class PointRegistry:
     @property
     def points(self) -> list[R3Vector]:
         '''Copy of all registered points.'''
-        return [r3vector_copy(p) for p in self._points]
+        return [vector_copy(p) for p in self._points]
 
     @points.setter
     def points(self, value) -> None:
@@ -106,7 +106,7 @@ class PointRegistry:
                     ' is out of range for ', str(len(self._points)), ' points',
                 ])
             )
-        return r3vector_copy(self._points[idx])
+        return vector_copy(self._points[idx])
 
     def morton_keys_for_aabb(
         self,
@@ -118,8 +118,8 @@ class PointRegistry:
 
         Returns ``None`` when the overlapped cell count exceeds *max_cells*.
         '''
-        min_xyz = r3vector_copy(min_xyz)
-        max_xyz = r3vector_copy(max_xyz)
+        min_xyz = vector_copy(min_xyz)
+        max_xyz = vector_copy(max_xyz)
 
         for i in range(3):
             if min_xyz[i] > max_xyz[i]:
@@ -157,11 +157,11 @@ class PointRegistry:
 
     def get_or_insert(self, point: R3Vector) -> Index:
         '''Return the index of *point*, inserting it first if no match exists.'''
-        point = r3vector_copy(point)
+        point = vector_copy(point)
         key = self._octree.morton_key(point)
         candidates = self._cell_indices.get(key, [])
         for idx in candidates:
-            if r3vector_equality(self._points[idx], point, self._reltol):
+            if vector_equality(self._points[idx], point, self._reltol):
                 return Index(idx)
         new_idx = len(self._points)
         self._points.append(point)
@@ -219,11 +219,11 @@ def _is_shared_endpoint_intersection(
     reltol: Real,
 ) -> bool:
     """Return True when segment intersection is exactly at one endpoint of each segment."""
-    if not r3vector_equality(c1, c2, reltol):
+    if not vector_equality(c1, c2, reltol):
         return False
 
-    p_at_endpoint = r3vector_equality(c1, p0, reltol) or r3vector_equality(c1, p1, reltol)
-    q_at_endpoint = r3vector_equality(c2, q0, reltol) or r3vector_equality(c2, q1, reltol)
+    p_at_endpoint = vector_equality(c1, p0, reltol) or vector_equality(c1, p1, reltol)
+    q_at_endpoint = vector_equality(c2, q0, reltol) or vector_equality(c2, q1, reltol)
     return p_at_endpoint and q_at_endpoint
 
 
@@ -241,7 +241,7 @@ class WireMesh3D:
     reltol:
         Relative tolerance used to detect collisions between points, measured
         relative to each point's distance from the origin (via
-        :func:`~doodler.r3.r3vector_equality`).  Must be positive.
+        :func:`~doodler.r3.vector_equality`).  Must be positive.
     """
 
     def __init__(
@@ -265,14 +265,14 @@ class WireMesh3D:
         # Validate and deep-copy polylines; detect intra-polyline collisions.
         copied: dict[str, list[R3Vector]] = {}
         for name, points in named_polylines.items():
-            pts = [r3vector_copy(p) for p in points]
+            pts = [vector_copy(p) for p in points]
             if len(pts) < 2:
                 raise Unrecoverable(
                     ''.join(['WireMesh3D: polyline "', name, '" must have at least 2 points'])
                 )
             for i in range(len(pts)):
                 for j in range(i + 1, len(pts)):
-                    if r3vector_equality(pts[i], pts[j], reltol):
+                    if vector_equality(pts[i], pts[j], reltol):
                         raise Unrecoverable(
                             ''.join([
                                 'WireMesh3D: polyline "', name, '" has colliding points at indices ',
@@ -282,8 +282,8 @@ class WireMesh3D:
             copied[name] = pts
 
         all_pts_flat = np.array([pt for pts in copied.values() for pt in pts])
-        bbox_min = r3vector_copy(np.min(all_pts_flat, axis=0))
-        bbox_max = r3vector_copy(np.max(all_pts_flat, axis=0))
+        bbox_min = vector_copy(np.min(all_pts_flat, axis=0))
+        bbox_max = vector_copy(np.max(all_pts_flat, axis=0))
         # Pad to guarantee strict min < max and avoid boundary issues.
         max_coord = Real(max(
             float(np.max(np.abs(bbox_max))),
@@ -306,8 +306,8 @@ class WireMesh3D:
         candidate_pairs: set[tuple[int, int]] = set()
         global_segments: list[int] = []
         for seg_id, (name, _seg_idx, p0, p1) in enumerate(segment_records):
-            seg_min = r3vector_copy(np.minimum(p0, p1) - broad_phase.abstol)
-            seg_max = r3vector_copy(np.maximum(p0, p1) + broad_phase.abstol)
+            seg_min = vector_copy(np.minimum(p0, p1) - broad_phase.abstol)
+            seg_max = vector_copy(np.maximum(p0, p1) + broad_phase.abstol)
             keys = broad_phase.morton_keys_for_aabb(
                 seg_min,
                 seg_max,
@@ -350,7 +350,7 @@ class WireMesh3D:
                 q0,
                 q1,
             )
-            if r3vector_equality(c1, c2, reltol) and not _is_shared_endpoint_intersection(
+            if vector_equality(c1, c2, reltol) and not _is_shared_endpoint_intersection(
                 p0,
                 p1,
                 q0,
@@ -411,7 +411,7 @@ class WireMesh3D:
     def named_polylines(self) -> dict[str, list[R3Vector]]:
         '''Named polylines in global x, y, z coordinates.'''
         return {
-            name: [r3vector_copy(pt) for pt in pts]
+            name: [vector_copy(pt) for pt in pts]
             for name, pts in self._named_polylines.items()
         }
 
@@ -555,7 +555,7 @@ class WireMesh3D:
         '''Construct a new WireMesh3D that shares *registry* with remapped point indices.'''
         instance = object.__new__(cls)
         instance._named_polylines = {
-            name: [r3vector_copy(pt) for pt in pts]
+            name: [vector_copy(pt) for pt in pts]
             for name, pts in source._named_polylines.items()
         }
         instance._h = source._h
@@ -592,8 +592,8 @@ def unify_meshes(
         Copy of *b* likewise remapped into the same shared registry.
     """
     reltol = Real(max(float(a.reltol), float(b.reltol)))
-    shared_min = r3vector_copy(np.minimum(a.point_registry.min_xyz, b.point_registry.min_xyz))
-    shared_max = r3vector_copy(np.maximum(a.point_registry.max_xyz, b.point_registry.max_xyz))
+    shared_min = vector_copy(np.minimum(a.point_registry.min_xyz, b.point_registry.min_xyz))
+    shared_max = vector_copy(np.maximum(a.point_registry.max_xyz, b.point_registry.max_xyz))
     shared = PointRegistry(shared_min, shared_max, reltol)
 
     remap_a: list[Index] = []

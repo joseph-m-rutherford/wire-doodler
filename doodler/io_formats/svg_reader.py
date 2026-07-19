@@ -9,7 +9,7 @@ import numpy as np
 from ..common import Real
 from ..errors import NotYetImplemented, Unrecoverable
 from ..geometry.wire_segments import WireSegment2D, as_xyz
-from ..r3 import R3Axes, R3Vector, r3vector_copy, axes3d_copy
+from ..r3 import R3Axes, R3Vector, vector_copy, axes3d_copy
 
 
 def _local_tag(element: ET.Element) -> str:

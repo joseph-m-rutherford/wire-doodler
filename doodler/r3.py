@@ -12,7 +12,14 @@ R3Axes = npt.NDArray  # Shape (3,3) and dtype=Real, pending https://peps.python.
 
 TOLERANCE = Real(1e-6)
 
-def r3vector_copy(xyz: any) -> R3Vector:
+def vector(x: Real, y: Real, z: Real) -> R3Vector:
+    result = R3Vector((3,),dtype=Real)
+    result[0] = x
+    result[1] = y
+    result[2] = z
+    return result
+
+def vector_copy(xyz: any) -> R3Vector:
     '''Cast the argument into a length-3 array of floating point data'''
     result = None
     try:
@@ -49,14 +56,7 @@ def axes3d_copy(axes: any) -> R3Axes:
                                      str(axes),':\n\t',str(e)]))
     return result            
 
-def real_equality(a: Real, b: Real, tolerance: Real) -> bool:
-    '''For values near the origin, use absolute comparison; otherwise do relative comparison'''
-    if abs(a) < tolerance and abs(b) < tolerance:
-        return True
-    else:
-        return abs(a-b)/max(abs(a),abs(b)) < tolerance
-
-def r3vector_equality(a: R3Vector, b: R3Vector, tolerance: Real) -> bool:
+def vector_equality(a: R3Vector, b: R3Vector, tolerance: Real) -> bool:
     '''Compute relative difference between r3vector results'''
     if tolerance < TOLERANCE:
         raise Unrecoverable('Cannot perform relative equality with finer tolerance than module relative tolerance')
@@ -93,8 +93,8 @@ class Octree:
         max_xyz: R3Vector,
         tolerance: Real,
     ) -> None:
-        min_xyz = r3vector_copy(min_xyz)
-        max_xyz = r3vector_copy(max_xyz)
+        min_xyz = vector_copy(min_xyz)
+        max_xyz = vector_copy(max_xyz)
         tolerance = Real(tolerance)
 
         if tolerance <= Real(0):
@@ -125,7 +125,7 @@ class Octree:
     @property
     def min_xyz(self) -> R3Vector:
         '''Minimum corner of the bounding box.'''
-        return r3vector_copy(self._min_xyz)
+        return vector_copy(self._min_xyz)
 
     @min_xyz.setter
     def min_xyz(self, value) -> None:
@@ -134,7 +134,7 @@ class Octree:
     @property
     def max_xyz(self) -> R3Vector:
         '''Maximum corner of the bounding box.'''
-        return r3vector_copy(self._max_xyz)
+        return vector_copy(self._max_xyz)
 
     @max_xyz.setter
     def max_xyz(self, value) -> None:
@@ -188,7 +188,7 @@ class Octree:
 
     def morton_key(self, point: R3Vector) -> int:
         '''Compute the Morton key for *point* without inserting it.'''
-        point = r3vector_copy(point)
+        point = vector_copy(point)
         for i in range(3):
             if point[i] < self._min_xyz[i] or point[i] > self._max_xyz[i]:
                 raise Unrecoverable(
@@ -205,7 +205,7 @@ class Octree:
         '''
         key = self.morton_key(point)
         if key not in self._points:
-            self._points[key] = r3vector_copy(point)
+            self._points[key] = vector_copy(point)
         return key
 
     def point(self, key: int) -> R3Vector:
@@ -214,4 +214,4 @@ class Octree:
             raise Unrecoverable(
                 ''.join(['Octree: Morton key ', str(key), ' not found'])
             )
-        return r3vector_copy(self._points[key])
+        return vector_copy(self._points[key])

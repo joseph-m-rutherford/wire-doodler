@@ -10,7 +10,7 @@ from ..common import Index, Real
 from ..errors import NeverImplement
 from ..errors import Unrecoverable
 from .wire_mesh import WireMesh3D
-from ..r3 import r3vector_equality
+from ..r3 import vector_equality
 
 
 class FillChoice(str, Enum):
@@ -57,13 +57,13 @@ class WireMesh3DFill:
         b0, b1 = mesh.subsegment_endpoints(s1)
         reltol = mesh.reltol
 
-        if r3vector_equality(a0, b0, reltol):
+        if vector_equality(a0, b0, reltol):
             return [(s0, 0), (s1, 0)]
-        if r3vector_equality(a0, b1, reltol):
+        if vector_equality(a0, b1, reltol):
             return [(s0, 0), (s1, 1)]
-        if r3vector_equality(a1, b0, reltol):
+        if vector_equality(a1, b0, reltol):
             return [(s0, 1), (s1, 0)]
-        if r3vector_equality(a1, b1, reltol):
+        if vector_equality(a1, b1, reltol):
             return [(s0, 1), (s1, 1)]
 
         raise Unrecoverable(
@@ -92,12 +92,12 @@ class WireMesh3DFill:
                 for basis_sub_idx, basis_local_idx in basis_support:
                     basis_start, basis_end = basis_mesh.subsegment_endpoints(basis_sub_idx)
                     same_orientation = (
-                        r3vector_equality(test_start, basis_start, reltol)
-                        and r3vector_equality(test_end, basis_end, reltol)
+                        vector_equality(test_start, basis_start, reltol)
+                        and vector_equality(test_end, basis_end, reltol)
                     )
                     reversed_orientation = (
-                        r3vector_equality(test_start, basis_end, reltol)
-                        and r3vector_equality(test_end, basis_start, reltol)
+                        vector_equality(test_start, basis_end, reltol)
+                        and vector_equality(test_end, basis_start, reltol)
                     )
                     if not same_orientation and not reversed_orientation:
                         continue

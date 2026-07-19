@@ -3,7 +3,7 @@
 
 from .common import Shape3D, InvalidTangentCoordinates, TOLERANCE, valid_tangent_coordinates
 from doodler.errors import Unrecoverable, NeverImplement
-from doodler.r3 import Real, R3Vector, r3vector_copy, r3vector_equality
+from doodler.r3 import Real, R3Vector, vector_copy, vector_equality
 import copy
 import math
 import numpy as np
@@ -66,7 +66,7 @@ class ClippedSphere(Shape3D):
 
             if abs(Real(1) - math.sqrt(np.dot(direction,direction))) > TOLERANCE:
                 raise InvalidClipPlane('Cannot clip at non unit direction |{}| != 1.'.format(direction))
-            self._direction = r3vector_copy(direction)
+            self._direction = vector_copy(direction)
 
             if distance < TOLERANCE:
                 raise InvalidClipPlane('Cannot clip sphere at radius < {}'.format(TOLERANCE))
@@ -88,7 +88,7 @@ class ClippedSphere(Shape3D):
                 # normal has no w component, which is an error case
                 raise InvalidClipPlane('Clip plane must have non-trivial parent w-direction')
             # Arbitrary alignment: best match to parent u-direction
-            self._circle_u = np.cross(r3vector_copy((0.,alignment.sign,0.)),self._direction)
+            self._circle_u = np.cross(vector_copy((0.,alignment.sign,0.)),self._direction)
             self._circle_u /= math.sqrt(np.dot(self._circle_u,self._circle_u))
             # Capture left-handed behavior here
             self._circle_v = np.cross(self._direction,self._circle_u)
@@ -195,11 +195,11 @@ class ClippedSphere(Shape3D):
                 # Pick least component of w for computing u,v axes
                 v_segment = None
                 if abs(w_axis[0]) <= abs(w_axis[1]) and abs(w_axis[0]) <= abs(w_axis[2]):
-                    v_segment = r3vector_copy((0,w_axis[2],-w_axis[1]))
+                    v_segment = vector_copy((0,w_axis[2],-w_axis[1]))
                 elif abs(w_axis[1]) <= abs(w_axis[2]) and abs(w_axis[1]) <= abs(w_axis[0]):
-                    v_segment = r3vector_copy((-w_axis[2],0,w_axis[0]))
+                    v_segment = vector_copy((-w_axis[2],0,w_axis[0]))
                 else: # abs(w_axis[2]) <= abs(w_axis[0]) and abs(w_axis[2]) <= abs(w_axis[1]) or they are equal
-                    v_segment = r3vector_copy((w_axis[1],-w_axis[0],0))
+                    v_segment = vector_copy((w_axis[1],-w_axis[0],0))
                 v_axis = v_segment/math.sqrt(np.dot(v_segment,v_segment))
                 u_axis = np.cross(v_axis,w_axis)
             else:
@@ -339,7 +339,7 @@ class ClippedSphere(Shape3D):
         s argument is scaled linearly in polar angle range (-pi,pi) about w-axis
         t argument is scaled linearly on arc between clip plane circles (-height/2,height/2)'''
         phi,theta = self.phi_theta(s,t)
-        return r3vector_copy((math.sin(theta)*math.cos(phi)*self._radius,math.sin(theta)*math.sin(phi)*self._radius,math.cos(theta)*self._radius))
+        return vector_copy((math.sin(theta)*math.cos(phi)*self._radius,math.sin(theta)*math.sin(phi)*self._radius,math.cos(theta)*self._radius))
 
         
     def surface_differential_area(self, s:Real, t:Real) -> Real:
@@ -348,17 +348,17 @@ class ClippedSphere(Shape3D):
         s argument is scaled linearly in polar angle range (-pi,pi) about w-axis
         t argument is scaled linearly on arc between clip plane circles (-height/2,height/2)'''
         phi,theta = self.phi_theta(s,t)
-        local_direction = r3vector_copy((math.sin(theta)*math.cos(phi),math.sin(theta)*math.sin(phi),math.cos(theta)))
+        local_direction = vector_copy((math.sin(theta)*math.cos(phi),math.sin(theta)*math.sin(phi),math.cos(theta)))
 
         # Rate of change in local r1xr2 space (-theta_hat x phi_hat)
         min_t_point,max_t_point = [clip.circle_position(s) for clip in self._clips]
         min_t_theta = math.acos(min_t_point[2]/self._radius)
         min_t_phi = math.atan2(min_t_point[1],min_t_point[0])
-        min_t_direction = r3vector_copy((math.sin(min_t_theta)*math.cos(min_t_phi),math.sin(min_t_theta)*math.sin(min_t_phi),math.cos(min_t_theta)))
+        min_t_direction = vector_copy((math.sin(min_t_theta)*math.cos(min_t_phi),math.sin(min_t_theta)*math.sin(min_t_phi),math.cos(min_t_theta)))
 
         max_t_theta = math.acos(max_t_point[2]/self._radius)
         max_t_phi = math.atan2(max_t_point[1],max_t_point[0])
-        max_t_direction = r3vector_copy((math.sin(max_t_theta)*math.cos(max_t_phi),math.sin(max_t_theta)*math.sin(max_t_phi),math.cos(max_t_theta)))
+        max_t_direction = vector_copy((math.sin(max_t_theta)*math.cos(max_t_phi),math.sin(max_t_theta)*math.sin(max_t_phi),math.cos(max_t_theta)))
 
         min_t_partial_s,max_t_partial_s = [clip.circle_derivative(s) for clip in self._clips]
         # r1 is in local -theta direction, r2 is in local phi direction

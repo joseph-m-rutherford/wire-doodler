@@ -7,7 +7,7 @@ import unittest.mock as mock
 import numpy as np
 import pytest
 
-from doodler import Index, Real, WireMesh3D
+from doodler import Index, Real, WireMesh3D, r3
 from doodler.errors import NeverImplement, Recoverable, Unrecoverable
 from doodler.operators.partitioner import PartitionMethod, Partitioner
 
@@ -16,8 +16,7 @@ from doodler.operators.partitioner import PartitionMethod, Partitioner
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _pt(x, y, z):
-    return np.array([Real(x), Real(y), Real(z)])
+_pt = r3.vector
 
 
 _TOL = Real(0.01)
