@@ -59,7 +59,7 @@ def _build_adjacency_list(
 
 
 class Partitioner:
-    """Partition the function index set of a :class:`~doodler.operators.MeshFunctions`
+    """Partition the function index set of a :class:`~doodler.discretization.MeshFunctions`
     into at most *max_n_parts* non-overlapping, collectively exhaustive groups.
 
     The partition can be built using one of two strategies:
@@ -78,9 +78,9 @@ class Partitioner:
     Parameters
     ----------
     mesh:
-        The :class:`~doodler.operators.WireMesh3D` the functions live on.
+        The :class:`~doodler.discretization.WireMesh3D` the functions live on.
     mesh_functions:
-        The :class:`~doodler.operators.MeshFunctions` to partition.
+        The :class:`~doodler.discretization.MeshFunctions` to partition.
     method:
         One of the :class:`PartitionMethod` strategies.
     max_n_parts:
@@ -106,7 +106,10 @@ class Partitioner:
             raise Unrecoverable('Partitioner: max_n_parts must be >= 1')
 
         self._max_n_parts = max_n_parts
-        self._method = PartitionMethod(method)
+        try:
+            self._method = PartitionMethod(method)
+        except ValueError as e:
+            raise Unrecoverable(f'Partitioner: unknown method {method!r}') from e
         # Keep references for child construction via refine().
         self._mesh = mesh
         self._mesh_functions = mesh_functions
