@@ -8,7 +8,6 @@ jobs:
     name: Python Unit Tests
     runs-on: ubuntu-latest
     env:
-      JULIA_VERSION: '1.12'
       PYTHON_VERSION: '3.14'
     steps:
       - name: Checkout Repository
