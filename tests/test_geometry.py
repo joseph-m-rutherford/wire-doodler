@@ -1,25 +1,25 @@
 #!/usr/bin/env python3
 # Copyright (c) 2023, Joseph M. Rutherford
 
-from doodler import geometry, real_equality, r3vector_copy, r3vector_equality, Cylinder, ClippedSphere, LeftHanded, RightHanded
+from doodler import geometry, real_equality, vector_copy, vector_equality, Cylinder, ClippedSphere, LeftHanded, RightHanded
 
 import math
 import numpy as np
 import pytest
 
-def test_r3vector_copy() -> None:
+def test_vector_copy() -> None:
     '''Verify correct handling of instantiation and equality'''
-    a = r3vector_copy((1,2,3))
+    a = vector_copy((1,2,3))
     a_reference = np.array([1.,2.,3.])
     assert np.sum(np.abs(a - a_reference)) == 0.0
-    assert r3vector_equality(a,(1,2,3),geometry.TOLERANCE)
-    assert r3vector_equality(a,a_reference,geometry.TOLERANCE)
-    b = r3vector_copy((3,2,1))
+    assert vector_equality(a,(1,2,3),geometry.TOLERANCE)
+    assert vector_equality(a,a_reference,geometry.TOLERANCE)
+    b = vector_copy((3,2,1))
     b_reference = np.array([3.,2.,1.])
     assert np.sum(np.abs(b - b_reference)) == 0.0
-    assert r3vector_equality(b,(3,2,1.),geometry.TOLERANCE)
-    assert r3vector_equality(a,a_reference,geometry.TOLERANCE)
-    assert not r3vector_equality(a,b,geometry.TOLERANCE)
+    assert vector_equality(b,(3,2,1.),geometry.TOLERANCE)
+    assert vector_equality(a,a_reference,geometry.TOLERANCE)
+    assert not vector_equality(a,b,geometry.TOLERANCE)
 
 def test_shape_construction() -> None:
     '''Verify that normal inputs have basic properties expected after construction'''
@@ -33,8 +33,8 @@ def test_shape_construction() -> None:
 
     center = (0.,0.,0.)
     radius = 1.0
-    clip_bottom = ClippedSphere.ClipPlane(LeftHanded(),radius,r3vector_copy((0.,0.,-1.)),0.75*radius)
-    clip_top = ClippedSphere.ClipPlane(RightHanded(),radius,r3vector_copy((0.,0.,1.)),0.75*radius)   
+    clip_bottom = ClippedSphere.ClipPlane(LeftHanded(),radius,vector_copy((0.,0.,-1.)),0.75*radius)
+    clip_top = ClippedSphere.ClipPlane(RightHanded(),radius,vector_copy((0.,0.,1.)),0.75*radius)   
     unit_sphere = ClippedSphere(center,radius,[clip_bottom,clip_top])
     assert unit_sphere.periodicity == (True,False)
     spans = unit_sphere.min_spans
@@ -80,42 +80,42 @@ def test_cylinder_bounding_box() -> None:
     min_uvw = np.zeros((3,))
     max_uvw = np.zeros((3,))
     htwo_rhalf_z.bounding_box_local(min_uvw,max_uvw)
-    assert r3vector_equality((-0.5,-0.5,-1),min_uvw,geometry.TOLERANCE)
-    assert r3vector_equality((0.5,0.5,1),max_uvw,geometry.TOLERANCE)
+    assert vector_equality((-0.5,-0.5,-1),min_uvw,geometry.TOLERANCE)
+    assert vector_equality((0.5,0.5,1),max_uvw,geometry.TOLERANCE)
 
     min_xyz = np.zeros((3,))
     max_xyz = np.zeros((3,))
     htwo_rhalf_z.bounding_box_global(min_xyz,max_xyz)
-    assert r3vector_equality((-0.5,-0.5,-1),min_xyz,geometry.TOLERANCE)
-    assert r3vector_equality((0.5,0.5,1),max_xyz,geometry.TOLERANCE)
+    assert vector_equality((-0.5,-0.5,-1),min_xyz,geometry.TOLERANCE)
+    assert vector_equality((0.5,0.5,1),max_xyz,geometry.TOLERANCE)
 
     # Flip along z-axis: bounding box unchanged
     htwo_rhalf_z_flip = Cylinder((0.,0.,1.),(0.,0.,-1.),0.5)
     htwo_rhalf_z_flip.bounding_box_local(min_uvw,max_uvw)
-    assert r3vector_equality((-0.5,-0.5,-1),min_uvw,geometry.TOLERANCE)
-    assert r3vector_equality((0.5,0.5,1),max_uvw,geometry.TOLERANCE)
+    assert vector_equality((-0.5,-0.5,-1),min_uvw,geometry.TOLERANCE)
+    assert vector_equality((0.5,0.5,1),max_uvw,geometry.TOLERANCE)
     htwo_rhalf_z_flip.bounding_box_global(min_xyz,max_xyz)
-    assert r3vector_equality((-0.5,-0.5,-1),min_xyz,geometry.TOLERANCE)
-    assert r3vector_equality((0.5,0.5,1),max_xyz,geometry.TOLERANCE)
+    assert vector_equality((-0.5,-0.5,-1),min_xyz,geometry.TOLERANCE)
+    assert vector_equality((0.5,0.5,1),max_xyz,geometry.TOLERANCE)
 
     # Interchange role of x,z
     alternate_htwo_rhalf_z_flip = Cylinder((1.,0.,0.),(-1.,0.,0.),0.5)
     alternate_htwo_rhalf_z_flip.bounding_box_local(min_uvw,max_uvw)
-    assert r3vector_equality((-0.5,-0.5,-1),min_uvw,geometry.TOLERANCE)
-    assert r3vector_equality((0.5,0.5,1),max_uvw,geometry.TOLERANCE)
+    assert vector_equality((-0.5,-0.5,-1),min_uvw,geometry.TOLERANCE)
+    assert vector_equality((0.5,0.5,1),max_uvw,geometry.TOLERANCE)
     alternate_htwo_rhalf_z_flip.bounding_box_global(min_xyz,max_xyz)
-    assert r3vector_equality((-1,-0.5,-0.5),min_xyz,geometry.TOLERANCE)
-    assert r3vector_equality((1,0.5,0.5),max_xyz,geometry.TOLERANCE)
+    assert vector_equality((-1,-0.5,-0.5),min_xyz,geometry.TOLERANCE)
+    assert vector_equality((1,0.5,0.5),max_xyz,geometry.TOLERANCE)
 
 
 def test_cylinder_surface_coordinates() -> None:
     # Verify positions on outer cylinder wall.
     htwo_rhalf_z = Cylinder((0.,0.,0.),(0.,0.,2.),0.5)
-    assert r3vector_equality((0.5,0,1),htwo_rhalf_z.surface_position_global(0,0),geometry.TOLERANCE)
-    assert r3vector_equality((0,0.5,1),htwo_rhalf_z.surface_position_global(0.5,0),geometry.TOLERANCE)
-    assert r3vector_equality((0,-0.5,1),htwo_rhalf_z.surface_position_global(-0.5,0),geometry.TOLERANCE)
-    assert r3vector_equality((0.5,0,1.5),htwo_rhalf_z.surface_position_global(0,0.5),geometry.TOLERANCE)
-    assert r3vector_equality((0,0.5,1.5),htwo_rhalf_z.surface_position_global(0.5,0.5),geometry.TOLERANCE)
+    assert vector_equality((0.5,0,1),htwo_rhalf_z.surface_position_global(0,0),geometry.TOLERANCE)
+    assert vector_equality((0,0.5,1),htwo_rhalf_z.surface_position_global(0.5,0),geometry.TOLERANCE)
+    assert vector_equality((0,-0.5,1),htwo_rhalf_z.surface_position_global(-0.5,0),geometry.TOLERANCE)
+    assert vector_equality((0.5,0,1.5),htwo_rhalf_z.surface_position_global(0,0.5),geometry.TOLERANCE)
+    assert vector_equality((0,0.5,1.5),htwo_rhalf_z.surface_position_global(0.5,0.5),geometry.TOLERANCE)
     # Differential area such that integration over s in [-1,1] and t in [-1,1] yields surface area of cylinder
     # Constant for all s,t
     assert real_equality(2*np.pi*0.5*2/4,htwo_rhalf_z.surface_differential_area(0,0),geometry.TOLERANCE)
@@ -133,8 +133,8 @@ def test_clipped_sphere_bounding_box():
     min_uvw = np.zeros((3,))
     max_uvw = np.zeros((3,))
     unit_sphere.bounding_box_local(min_uvw,max_uvw)
-    assert r3vector_equality((-1,-1,-0.99*radius),min_uvw,geometry.TOLERANCE)
-    assert r3vector_equality((1,1,0.99*radius),max_uvw,geometry.TOLERANCE)
+    assert vector_equality((-1,-1,-0.99*radius),min_uvw,geometry.TOLERANCE)
+    assert vector_equality((1,1,0.99*radius),max_uvw,geometry.TOLERANCE)
 
 def test_clipped_sphere_invalid_planes():
     from doodler.geometry import InvalidClipPlane

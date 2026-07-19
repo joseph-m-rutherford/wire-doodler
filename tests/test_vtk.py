@@ -4,7 +4,7 @@
 import numpy as np
 import pytest
 
-from doodler import as_xyz, export_polylines, Real, Unrecoverable, WireSegment2D, r3vector_equality
+from doodler import as_xyz, export_polylines, Real, Unrecoverable, WireSegment2D, vector_equality
 from doodler.r3 import TOLERANCE
 
 
@@ -19,8 +19,8 @@ def test_as_xyz_identity_frame_line():
     result = as_xyz(segs, _IDENTITY_FRAME, _ZERO_OFFSET)
     pts = result['seg1']
     assert len(pts) == 2
-    assert r3vector_equality(pts[0], np.array([0, 0, 0], dtype=Real), TOLERANCE)
-    assert r3vector_equality(pts[1], np.array([10, 20, 0], dtype=Real), TOLERANCE)
+    assert vector_equality(pts[0], np.array([0, 0, 0], dtype=Real), TOLERANCE)
+    assert vector_equality(pts[1], np.array([10, 20, 0], dtype=Real), TOLERANCE)
 
 
 def test_as_xyz_identity_frame_polyline():
@@ -28,9 +28,9 @@ def test_as_xyz_identity_frame_polyline():
     result = as_xyz(segs, _IDENTITY_FRAME, _ZERO_OFFSET)
     pts = result['tri']
     assert len(pts) == 3
-    assert r3vector_equality(pts[0], np.array([0, 0, 0], dtype=Real), TOLERANCE)
-    assert r3vector_equality(pts[1], np.array([5, 10, 0], dtype=Real), TOLERANCE)
-    assert r3vector_equality(pts[2], np.array([10, 0, 0], dtype=Real), TOLERANCE)
+    assert vector_equality(pts[0], np.array([0, 0, 0], dtype=Real), TOLERANCE)
+    assert vector_equality(pts[1], np.array([5, 10, 0], dtype=Real), TOLERANCE)
+    assert vector_equality(pts[2], np.array([10, 0, 0], dtype=Real), TOLERANCE)
 
 
 def test_as_xyz_with_offset():
@@ -39,8 +39,8 @@ def test_as_xyz_with_offset():
     offset = np.array([1, 2, 3], dtype=Real)
     result = as_xyz(segs, _IDENTITY_FRAME, offset)
     pts = result['seg1']
-    assert r3vector_equality(pts[0], np.array([1, 2, 3], dtype=Real), TOLERANCE)
-    assert r3vector_equality(pts[1], np.array([11, 22, 3], dtype=Real), TOLERANCE)
+    assert vector_equality(pts[0], np.array([1, 2, 3], dtype=Real), TOLERANCE)
+    assert vector_equality(pts[1], np.array([11, 22, 3], dtype=Real), TOLERANCE)
 
 
 def test_as_xyz_rotated_frame():
@@ -51,9 +51,9 @@ def test_as_xyz_rotated_frame():
     result = as_xyz(segs, frame, _ZERO_OFFSET)
     pts = result['r']
     # point (u=1, v=2) -> 1*y_hat + 2*z_hat = (0, 1, 2)
-    assert r3vector_equality(pts[0], np.array([0, 1, 2], dtype=Real), TOLERANCE)
+    assert vector_equality(pts[0], np.array([0, 1, 2], dtype=Real), TOLERANCE)
     # point (u=3, v=4) -> 3*y_hat + 4*z_hat = (0, 3, 4)
-    assert r3vector_equality(pts[1], np.array([0, 3, 4], dtype=Real), TOLERANCE)
+    assert vector_equality(pts[1], np.array([0, 3, 4], dtype=Real), TOLERANCE)
 
 
 def test_as_xyz_returns_real_dtype():

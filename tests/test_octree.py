@@ -4,19 +4,15 @@
 import numpy as np
 import pytest
 
-from doodler import Real
+from doodler import Real, r3
 from doodler.errors import NeverImplement, Unrecoverable
-from doodler.r3 import Octree, r3vector_copy
-
+from doodler.r3 import Octree, vector_copy
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _pt(x, y, z):
-    return np.array([Real(x), Real(y), Real(z)])
-
-
+_pt = r3.vector
 _MIN = _pt(0, 0, 0)
 _MAX = _pt(10, 10, 10)
 _TOL = Real(0.1)

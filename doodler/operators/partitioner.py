@@ -10,7 +10,7 @@ import numpy as np
 
 from ..common import Index, Real
 from ..errors import NeverImplement, Recoverable, Unrecoverable
-from ..r3 import Octree, R3Vector, r3vector_copy
+from ..r3 import Octree, R3Vector, vector_copy
 
 if TYPE_CHECKING:
     from .mesh_functions import MeshFunctions
@@ -206,8 +206,8 @@ class Partitioner:
             shared_coords.append(mesh.vertex_xyz(sv_idx))
 
         coords_arr = np.array(shared_coords)  # shape (n_functions, 3)
-        bbox_min = r3vector_copy(np.min(coords_arr, axis=0))
-        bbox_max = r3vector_copy(np.max(coords_arr, axis=0))
+        bbox_min = vector_copy(np.min(coords_arr, axis=0))
+        bbox_max = vector_copy(np.max(coords_arr, axis=0))
 
         # Pad to guarantee strict min < max and numerical headroom.
         reltol = mesh.reltol
@@ -217,8 +217,8 @@ class Partitioner:
             1.0,
         ))
         pad = Real(reltol * max_norm)
-        bbox_min = r3vector_copy(bbox_min - pad)
-        bbox_max = r3vector_copy(bbox_max + pad)
+        bbox_min = vector_copy(bbox_min - pad)
+        bbox_max = vector_copy(bbox_max + pad)
         abstol = Real(reltol * max_norm)
 
         # Build finest-resolution octree to get Morton keys for all shared vertices.

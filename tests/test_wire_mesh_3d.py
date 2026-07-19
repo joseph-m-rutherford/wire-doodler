@@ -4,7 +4,7 @@
 import numpy as np
 import pytest
 
-from doodler import Index, Real, PointRegistry, WireMesh3D, unify_meshes
+from doodler import Index, Real, PointRegistry, WireMesh3D, r3, unify_meshes
 from doodler.errors import NeverImplement, NotYetImplemented, Unrecoverable
 
 
@@ -12,8 +12,7 @@ from doodler.errors import NeverImplement, NotYetImplemented, Unrecoverable
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _pt(x, y, z):
-    return np.array([Real(x), Real(y), Real(z)])
+_pt = r3.vector
 
 
 # Two well-separated, non-intersecting polylines used as the "happy path".

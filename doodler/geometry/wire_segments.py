@@ -3,7 +3,7 @@
 
 from ..common import Real
 from ..errors import NeverImplement
-from ..r3 import R3Axes, R3Vector, r3vector_copy, axes3d_copy
+from ..r3 import R3Axes, R3Vector, vector_copy, axes3d_copy
 import numpy as np
 
 
@@ -71,7 +71,7 @@ def as_xyz(
         :func:`axes3d_copy`.
     xyz_offset:
         A length-3 global offset added to every converted point.
-        Validated via :func:`r3vector_copy`.
+        Validated via :func:`vector_copy`.
 
     Returns
     -------
@@ -79,7 +79,7 @@ def as_xyz(
     (dtype :data:`Real`) in global x, y, z coordinates.
     """
     frame = axes3d_copy(uvw)
-    offset = r3vector_copy(xyz_offset)
+    offset = vector_copy(xyz_offset)
     u_hat = frame[0]
     v_hat = frame[1]
 

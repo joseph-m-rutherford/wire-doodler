@@ -4,7 +4,7 @@
 from .common import Shape3D, InvalidTangentCoordinates, TOLERANCE, valid_tangent_coordinates
 
 from doodler.errors import Unrecoverable
-from doodler.r3 import Real, R3Vector, r3vector_copy
+from doodler.r3 import Real, R3Vector, vector_copy
 import math
 import numpy as np
 
@@ -17,8 +17,8 @@ class Cylinder(Shape3D):
             raise Unrecoverable(''.join(['Invalid cylinder radius \'',repr(radius),'\':',str(e)]))
         if self._radius <= 0:
             raise Unrecoverable(''.join(['Invalid cylinder radius ', str(self._radius),' <= 0']))
-        start = r3vector_copy(start_center)
-        stop = r3vector_copy(stop_center)
+        start = vector_copy(start_center)
+        stop = vector_copy(stop_center)
         segment = stop - start
         height = math.sqrt(np.dot(segment,segment))
         if height/radius <= TOLERANCE or radius/height <= TOLERANCE:
@@ -29,11 +29,11 @@ class Cylinder(Shape3D):
         # Pick least component of w for computing u,v axes
         v_segment = None
         if abs(w_axis[0]) <= abs(w_axis[1]) and abs(w_axis[0]) <= abs(w_axis[2]):
-            v_segment = r3vector_copy((0,w_axis[2],-w_axis[1]))
+            v_segment = vector_copy((0,w_axis[2],-w_axis[1]))
         elif abs(w_axis[1]) <= abs(w_axis[2]) and abs(w_axis[1]) <= abs(w_axis[0]):
-            v_segment = r3vector_copy((-w_axis[2],0,w_axis[0]))
+            v_segment = vector_copy((-w_axis[2],0,w_axis[0]))
         else: # abs(w_axis[2]) <= abs(w_axis[0]) and abs(w_axis[2]) <= abs(w_axis[1]) or they are equal
-            v_segment = r3vector_copy((w_axis[1],-w_axis[0],0))
+            v_segment = vector_copy((w_axis[1],-w_axis[0],0))
         v_axis = v_segment/math.sqrt(np.dot(v_segment,v_segment))
         u_axis = np.cross(v_axis,w_axis)
         super().__init__((start+stop)/2,(u_axis,v_axis,w_axis))

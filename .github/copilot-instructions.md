@@ -7,7 +7,7 @@
 ## Architecture you should understand first
 - `doodler/common.py` defines scalar/index aliases (`Real`, `Index`, `Integer`) used consistently across modules.
 - `doodler/errors.py` defines the project error taxonomy (`Recoverable`, `Unrecoverable`, `NeverImplement`, `NotYetImplemented`).
-- `doodler/r3.py` defines 3-D vector/axes validation and tolerant equality helpers (e.g., `r3vector_copy`, `axes3d_copy`, `r3vector_equality`).
+- `doodler/r3.py` defines 3-D vector/axes validation and tolerant equality helpers (e.g., `vector_copy`, `axes3d_copy`, `vector_equality`).
 - `doodler/geometry/` contains geometry primitives and 2-D wire segment containers:
   - `geometry/common.py`: `Shape3D` base contract + tangent-domain validation.
   - `geometry/cylinder.py`, `geometry/clipped_sphere.py`: concrete `Shape3D` implementations.
@@ -28,7 +28,7 @@
 
 ## Critical conventions (project-specific)
 - Numeric dtypes are explicit aliases (`Real`, `Index`, `Integer`), mostly `numpy.float64`/`int64`; preserve these when adding arrays.
-- Validate and copy vector inputs through `r3vector_copy` / `axes3d_copy` (`doodler/r3.py`) instead of trusting caller arrays.
+- Validate and copy vector inputs through `vector_copy` / `axes3d_copy` (`doodler/r3.py`) instead of trusting caller arrays.
 - Error taxonomy is meaningful:
   - raise `Recoverable` for retriable conditions (e.g., absent cached rule files),
   - raise `Unrecoverable` for invalid state,
@@ -54,7 +54,7 @@
 - Sampling accuracy behavior is validated against SciPy integration in tests; changing span/rule selection logic in `Shape3DSampler` will affect many assertions.
 
 ## Testing patterns to mirror
-- Tests use tolerance-based assertions (`real_equality`, `r3vector_equality`) rather than exact equality for floating-point math.
+- Tests use tolerance-based assertions (`real_equality`, `vector_equality`) rather than exact equality for floating-point math.
 - Randomized geometry tests are deterministic via a fixed NumPy RNG seed in `tests/test_shape_samples.py`.
 - When adding geometry features, include both aligned and rotated-frame cases (see cylinder/sphere area tests).
 - Wire mesh/operator tests are split by responsibility:

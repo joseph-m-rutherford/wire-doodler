@@ -3,12 +3,9 @@
 
 import numpy as np
 
-from doodler import FillChoice, Index, Real, WireMesh3D, WireMesh3DFill
+from doodler import FillChoice, Index, Real, WireMesh3D, WireMesh3DFill, r3
 
-
-def _pt(x, y, z):
-    return np.array([Real(x), Real(y), Real(z)])
-
+_pt = r3.vector
 
 def test_mass_filler_single_overlap_between_meshes():
     # Only one subsegment overlaps: [1, 2] on the x-axis.
