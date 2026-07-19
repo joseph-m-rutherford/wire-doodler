@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright (c) 2023, Joseph M. Rutherford
+# Copyright (c) 2023-2026, Joseph M. Rutherford
 
 import numpy as np
 
@@ -249,7 +249,6 @@ class WireMesh3D:
         named_polylines: dict[str, list[R3Vector]],
         h: Real,
         reltol: Real,
-        *,
         method: PartitionMethod = PartitionMethod.OCTREE,
         max_n_parts: int = 1,
     ) -> None:

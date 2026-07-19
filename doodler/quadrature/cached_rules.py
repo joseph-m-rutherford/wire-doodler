@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright (c) 2023, Joseph M. Rutherford
+# Copyright (c) 2023-2026, Joseph M. Rutherford
 from doodler.common import Index, Real
 from doodler.errors import Recoverable
 from .rules import Rule1D, Rule2D
