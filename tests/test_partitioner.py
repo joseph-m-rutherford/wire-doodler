@@ -9,7 +9,7 @@ import pytest
 
 from doodler import Index, Real, WireMesh3D, r3
 from doodler.errors import NeverImplement, Recoverable, Unrecoverable
-from doodler.operators.partitioner import PartitionMethod, Partitioner
+from doodler.discretization.partitioner import PartitionMethod, Partitioner
 
 
 # ---------------------------------------------------------------------------

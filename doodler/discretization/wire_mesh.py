@@ -7,8 +7,8 @@ from ..common import Index, Integer, Real
 from ..errors import NeverImplement
 from ..errors import NotYetImplemented
 from ..errors import Unrecoverable
-from ..operators.mesh_functions import MeshFunctions
-from ..operators.partitioner import PartitionMethod
+from .mesh_functions import MeshFunctions
+from .partitioner import PartitionMethod
 from ..r3 import R3Vector, vector_copy, vector_equality, Octree, TOLERANCE
 
 
