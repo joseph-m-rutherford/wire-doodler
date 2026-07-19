@@ -9,7 +9,7 @@ import numpy as np
 from ..common import Index, Real
 from ..errors import NeverImplement
 from ..errors import Unrecoverable
-from .wire_mesh import WireMesh3D
+from ..discretization.wire_mesh import WireMesh3D
 from ..r3 import vector_equality
 
 
