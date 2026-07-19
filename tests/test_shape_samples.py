@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright (c) 2023, Joseph M. Rutherford
+# Copyright (c) 2023-2026, Joseph M. Rutherford
 
 from doodler import geometry, quadrature, real_equality
 from doodler.geometry import ClippedSphere, Cylinder, Shape3DSampler, LeftHanded, RightHanded
