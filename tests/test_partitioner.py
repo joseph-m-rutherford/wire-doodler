@@ -53,7 +53,7 @@ def test_partitioner_octree_n_parts_1_all_functions_in_partition_0():
     p = mesh.function_supports.partitioner
     fns = p.supports_in_partition(Index(0))
     expected = list(range(len(mesh.function_supports.support_subsegment_pairs)))
-    assert sorted(int(f) for f in fns) == expected
+    assert sorted(int(s) for s in fns) == expected
 
 
 # ---------------------------------------------------------------------------
@@ -67,7 +67,7 @@ def test_partitioner_octree_coverage():
     n_fns = len(mesh.function_supports.support_subsegment_pairs)
     all_fns = []
     for pid in range(p.partition_count):
-        all_fns.extend(int(f) for f in p.supports_in_partition(Index(pid)))
+        all_fns.extend(int(s) for s in p.supports_in_partition(Index(pid)))
     assert sorted(all_fns) == list(range(n_fns))
 
 
@@ -76,17 +76,17 @@ def test_partitioner_octree_invertibility():
     mesh = _simple_mesh(Real(1.0))
     p = mesh.function_supports.partitioner
     n_fns = len(mesh.function_supports.support_subsegment_pairs)
-    for fi in range(n_fns):
-        pid = int(p.partition_of_support(Index(fi)))
-        assert Index(fi) in p.supports_in_partition(Index(pid))
+    for si in range(n_fns):
+        pid = int(p.partition_of_support(Index(si)))
+        assert Index(si) in p.supports_in_partition(Index(pid))
 
 
 def test_partitioner_partition_of_function_value_in_range():
     mesh = _simple_mesh(Real(1.0))
     p = mesh.function_supports.partitioner
     n_fns = len(mesh.function_supports.support_subsegment_pairs)
-    for fi in range(n_fns):
-        pid = int(p.partition_of_support(Index(fi)))
+    for si in range(n_fns):
+        pid = int(p.partition_of_support(Index(si)))
         assert 0 <= pid < p.partition_count
 
 
@@ -516,11 +516,11 @@ def test_kahip_parallel_lines_unit_n_parts_2_coverage_and_invertibility():
     n_fns = len(mesh.function_supports.support_subsegment_pairs)
     all_fns = []
     for pid in range(p.partition_count):
-        all_fns.extend(int(f) for f in p.supports_in_partition(Index(pid)))
+        all_fns.extend(int(s) for s in p.supports_in_partition(Index(pid)))
     assert sorted(all_fns) == list(range(n_fns))
-    for fi in range(n_fns):
-        pid = int(p.partition_of_support(Index(fi)))
-        assert Index(fi) in p.supports_in_partition(Index(pid))
+    for si in range(n_fns):
+        pid = int(p.partition_of_support(Index(si)))
+        assert Index(si) in p.supports_in_partition(Index(pid))
 
 
 # ===========================================================================
@@ -539,11 +539,11 @@ def test_kahip_rectangle_unit_n_parts_2_coverage_and_invertibility():
     n_fns = len(mesh.function_supports.support_subsegment_pairs)
     all_fns = []
     for pid in range(p.partition_count):
-        all_fns.extend(int(f) for f in p.supports_in_partition(Index(pid)))
+        all_fns.extend(int(s) for s in p.supports_in_partition(Index(pid)))
     assert sorted(all_fns) == list(range(n_fns))
-    for fi in range(n_fns):
-        pid = int(p.partition_of_support(Index(fi)))
-        assert Index(fi) in p.supports_in_partition(Index(pid))
+    for si in range(n_fns):
+        pid = int(p.partition_of_support(Index(si)))
+        assert Index(si) in p.supports_in_partition(Index(pid))
 
 
 def test_kahip_rectangle_unit_n_parts_4_coverage_and_invertibility():
@@ -558,11 +558,11 @@ def test_kahip_rectangle_unit_n_parts_4_coverage_and_invertibility():
     n_fns = len(mesh.function_supports.support_subsegment_pairs)
     all_fns = []
     for pid in range(p.partition_count):
-        all_fns.extend(int(f) for f in p.supports_in_partition(Index(pid)))
+        all_fns.extend(int(s) for s in p.supports_in_partition(Index(pid)))
     assert sorted(all_fns) == list(range(n_fns))
-    for fi in range(n_fns):
-        pid = int(p.partition_of_support(Index(fi)))
-        assert Index(fi) in p.supports_in_partition(Index(pid))
+    for si in range(n_fns):
+        pid = int(p.partition_of_support(Index(si)))
+        assert Index(si) in p.supports_in_partition(Index(pid))
 
 
 # ===========================================================================
@@ -662,11 +662,11 @@ def test_kahip_parallel_lines_half_n_parts_2_coverage_and_invertibility():
     assert n_fns == 6
     all_fns = []
     for pid in range(p.partition_count):
-        all_fns.extend(int(f) for f in p.supports_in_partition(Index(pid)))
+        all_fns.extend(int(s) for s in p.supports_in_partition(Index(pid)))
     assert sorted(all_fns) == list(range(n_fns))
-    for fi in range(n_fns):
-        pid = int(p.partition_of_support(Index(fi)))
-        assert Index(fi) in p.supports_in_partition(Index(pid))
+    for si in range(n_fns):
+        pid = int(p.partition_of_support(Index(si)))
+        assert Index(si) in p.supports_in_partition(Index(pid))
 
 
 # ===========================================================================
@@ -773,11 +773,11 @@ def test_kahip_rectangle_half_n_parts_4_coverage_and_invertibility():
     assert n_fns == 8
     all_fns = []
     for pid in range(p.partition_count):
-        all_fns.extend(int(f) for f in p.supports_in_partition(Index(pid)))
+        all_fns.extend(int(s) for s in p.supports_in_partition(Index(pid)))
     assert sorted(all_fns) == list(range(n_fns))
-    for fi in range(n_fns):
-        pid = int(p.partition_of_support(Index(fi)))
-        assert Index(fi) in p.supports_in_partition(Index(pid))
+    for si in range(n_fns):
+        pid = int(p.partition_of_support(Index(si)))
+        assert Index(si) in p.supports_in_partition(Index(pid))
 
 
 # ===========================================================================
@@ -831,11 +831,11 @@ def test_kahip_parallel_lines_tenth_n_parts_4_coverage_and_invertibility():
     assert n_fns == 38
     all_fns = []
     for pid in range(p.partition_count):
-        all_fns.extend(int(f) for f in p.supports_in_partition(Index(pid)))
+        all_fns.extend(int(s) for s in p.supports_in_partition(Index(pid)))
     assert sorted(all_fns) == list(range(n_fns))
-    for fi in range(n_fns):
-        pid = int(p.partition_of_support(Index(fi)))
-        assert Index(fi) in p.supports_in_partition(Index(pid))
+    for si in range(n_fns):
+        pid = int(p.partition_of_support(Index(si)))
+        assert Index(si) in p.supports_in_partition(Index(pid))
 
 
 # ===========================================================================
@@ -899,11 +899,11 @@ def test_kahip_rectangle_tenth_n_parts_4_coverage_and_invertibility():
     assert n_fns == 40
     all_fns = []
     for pid in range(p.partition_count):
-        all_fns.extend(int(f) for f in p.supports_in_partition(Index(pid)))
+        all_fns.extend(int(s) for s in p.supports_in_partition(Index(pid)))
     assert sorted(all_fns) == list(range(n_fns))
-    for fi in range(n_fns):
-        pid = int(p.partition_of_support(Index(fi)))
-        assert Index(fi) in p.supports_in_partition(Index(pid))
+    for si in range(n_fns):
+        pid = int(p.partition_of_support(Index(si)))
+        assert Index(si) in p.supports_in_partition(Index(pid))
 
 
 # ===========================================================================
@@ -915,7 +915,7 @@ def test_partitioner_function_indices_root_covers_all():
     mesh = _two_parallel_lines_mesh(Real(1.0), 1, PartitionMethod.OCTREE)
     p = mesh.function_supports.partitioner
     n_fns = len(mesh.function_supports.support_subsegment_pairs)
-    assert sorted(int(fi) for fi in p.support_indices) == list(range(n_fns))
+    assert sorted(int(si) for si in p.support_indices) == list(range(n_fns))
 
 
 def test_partitioner_function_indices_immutable():
@@ -928,9 +928,9 @@ def test_partitioner_function_indices_immutable():
 def test_partitioner_function_indices_returns_copy():
     mesh = _simple_mesh(Real(1.0))
     p = mesh.function_supports.partitioner
-    lfi = p.support_indices
-    original_len = len(lfi)
-    lfi.clear()
+    lsi = p.support_indices
+    original_len = len(lsi)
+    lsi.clear()
     assert len(p.support_indices) == original_len
 
 
@@ -993,10 +993,10 @@ def test_partitioner_refine_child_local_functions_match_parent_partition():
     mesh = _two_parallel_lines_mesh(Real(1.0), 2, PartitionMethod.OCTREE)
     p = mesh.function_supports.partitioner
     for pid in range(2):
-        parent_fns = sorted(int(f) for f in p.supports_in_partition(Index(pid)))
+        parent_fns = sorted(int(s) for s in p.supports_in_partition(Index(pid)))
         child = p.refine(Index(pid), PartitionMethod.OCTREE, 1)
-        child_lfi = sorted(int(f) for f in child.support_indices)
-        assert child_lfi == parent_fns
+        child_lsi = sorted(int(s) for s in child.support_indices)
+        assert child_lsi == parent_fns
 
 
 def test_partitioner_refine_out_of_range_raises():
@@ -1021,9 +1021,9 @@ def test_partitioner_refine_child_partition_of_function_uses_global_index():
     mesh = _two_parallel_lines_mesh(Real(1.0), 2, PartitionMethod.OCTREE)
     p = mesh.function_supports.partitioner
     child = p.refine(Index(0), PartitionMethod.OCTREE, 1)
-    for fi in child.support_indices:
+    for si in child.support_indices:
         # Should not raise.
-        pid = child.partition_of_support(fi)
+        pid = child.partition_of_support(si)
         assert int(pid) == 0  # n_parts=1 so always partition 0
 
 
@@ -1035,9 +1035,9 @@ def test_partitioner_refine_child_rejects_foreign_global_index():
     child0 = p.refine(Index(0), PartitionMethod.OCTREE, 1)
     fns_in_1 = p.supports_in_partition(Index(1))
     assert len(fns_in_1) == 1
-    foreign_fi = fns_in_1[0]
+    foreign_si = fns_in_1[0]
     with pytest.raises(Unrecoverable):
-        child0.partition_of_support(foreign_fi)
+        child0.partition_of_support(foreign_si)
 
 
 # ===========================================================================
@@ -1075,8 +1075,8 @@ def test_partitioner_node_at_path_out_of_range_raises():
 def test_partitioner_functions_at_path_empty_path_returns_root_local():
     mesh = _two_parallel_lines_mesh(Real(1.0), 2, PartitionMethod.OCTREE)
     p = mesh.function_supports.partitioner
-    assert sorted(int(f) for f in p.supports_at_path([])) == sorted(
-        int(f) for f in p.support_indices
+    assert sorted(int(s) for s in p.supports_at_path([])) == sorted(
+        int(s) for s in p.support_indices
     )
 
 
@@ -1086,8 +1086,8 @@ def test_partitioner_functions_at_path_depth_1_matches_partition():
     p = mesh.function_supports.partitioner
     for pid in range(2):
         p.refine(Index(pid), PartitionMethod.OCTREE, 1)
-        fns_direct = sorted(int(f) for f in p.supports_in_partition(Index(pid)))
-        fns_via_path = sorted(int(f) for f in p.supports_at_path([pid]))
+        fns_direct = sorted(int(s) for s in p.supports_in_partition(Index(pid)))
+        fns_via_path = sorted(int(s) for s in p.supports_at_path([pid]))
         assert fns_via_path == fns_direct
 
 
@@ -1110,8 +1110,8 @@ def test_partitioner_two_level_tree_grandchild_local_functions_subset():
     p = mesh.function_supports.partitioner
     child0 = p.refine(Index(0), PartitionMethod.OCTREE, 1)
     child0.refine(Index(0), PartitionMethod.OCTREE, 1)
-    root_fns = set(int(f) for f in p.support_indices)
-    grandchild_fns = set(int(f) for f in p.supports_at_path([0, 0]))
+    root_fns = set(int(s) for s in p.support_indices)
+    grandchild_fns = set(int(s) for s in p.supports_at_path([0, 0]))
     assert grandchild_fns.issubset(root_fns)
 
 
@@ -1121,10 +1121,10 @@ def test_partitioner_two_level_tree_coverage_at_depth_1():
     p = mesh.function_supports.partitioner
     for pid in range(4):
         p.refine(Index(pid), PartitionMethod.OCTREE, 1)
-    root_fns = sorted(int(f) for f in p.support_indices)
+    root_fns = sorted(int(s) for s in p.support_indices)
     all_depth1 = []
     for pid in range(4):
-        all_depth1.extend(int(f) for f in p.supports_at_path([pid]))
+        all_depth1.extend(int(s) for s in p.supports_at_path([pid]))
     assert sorted(all_depth1) == root_fns
 
 
@@ -1135,10 +1135,10 @@ def test_partitioner_two_level_tree_coverage_at_depth_2():
     for pid in range(4):
         child = p.refine(Index(pid), PartitionMethod.OCTREE, 1)
         child.refine(Index(0), PartitionMethod.OCTREE, 1)
-    root_fns = sorted(int(f) for f in p.support_indices)
+    root_fns = sorted(int(s) for s in p.support_indices)
     all_depth2 = []
     for pid in range(4):
-        all_depth2.extend(int(f) for f in p.supports_at_path([pid, 0]))
+        all_depth2.extend(int(s) for s in p.supports_at_path([pid, 0]))
     assert sorted(all_depth2) == root_fns
 
 
@@ -1150,11 +1150,11 @@ def test_partitioner_two_level_tree_partition_of_function_global_indices():
         p.refine(Index(pid), PartitionMethod.OCTREE, 1)
     # Every function reachable from root should also be reachable from its child.
     n_fns = len(mesh.function_supports.support_subsegment_pairs)
-    for fi in range(n_fns):
-        root_pid = int(p.partition_of_support(Index(fi)))
+    for si in range(n_fns):
+        root_pid = int(p.partition_of_support(Index(si)))
         child = p.child(Index(root_pid))
         assert child is not None
-        child_pid = int(child.partition_of_support(Index(fi)))
+        child_pid = int(child.partition_of_support(Index(si)))
         assert child_pid == 0  # single-partition children always assign to 0
 
 
@@ -1195,7 +1195,7 @@ def test_octree_hierarchy_dense_parallel_lines_n_parts_4_coverage():
     assert p.partition_count == 4
     all_fns = []
     for pid in range(4):
-        all_fns.extend(int(f) for f in p.supports_in_partition(Index(pid)))
+        all_fns.extend(int(s) for s in p.supports_in_partition(Index(pid)))
     assert sorted(all_fns) == list(range(285))
 
 
@@ -1205,9 +1205,9 @@ def test_octree_hierarchy_dense_parallel_lines_refine_child_local_functions():
     mesh = _two_parallel_lines_mesh(Real(0.01), 4, PartitionMethod.OCTREE)
     p = mesh.function_supports.partitioner
     for pid in range(4):
-        parent_fns = sorted(int(f) for f in p.supports_in_partition(Index(pid)))
+        parent_fns = sorted(int(s) for s in p.supports_in_partition(Index(pid)))
         child = p.refine(Index(pid), PartitionMethod.OCTREE, 1)
-        assert sorted(int(f) for f in child.support_indices) == parent_fns
+        assert sorted(int(s) for s in child.support_indices) == parent_fns
 
 
 def test_octree_hierarchy_dense_parallel_lines_coverage_depth_1():
@@ -1216,10 +1216,10 @@ def test_octree_hierarchy_dense_parallel_lines_coverage_depth_1():
     p = mesh.function_supports.partitioner
     for pid in range(4):
         p.refine(Index(pid), PartitionMethod.OCTREE, 1)
-    root_fns = sorted(int(f) for f in p.support_indices)
+    root_fns = sorted(int(s) for s in p.support_indices)
     all_depth1 = []
     for pid in range(4):
-        all_depth1.extend(int(f) for f in p.supports_at_path([pid]))
+        all_depth1.extend(int(s) for s in p.supports_at_path([pid]))
     assert sorted(all_depth1) == root_fns
 
 
@@ -1230,10 +1230,10 @@ def test_octree_hierarchy_dense_parallel_lines_coverage_depth_2():
     for pid in range(4):
         child = p.refine(Index(pid), PartitionMethod.OCTREE, 1)
         child.refine(Index(0), PartitionMethod.OCTREE, 1)
-    root_fns = sorted(int(f) for f in p.support_indices)
+    root_fns = sorted(int(s) for s in p.support_indices)
     all_depth2 = []
     for pid in range(4):
-        all_depth2.extend(int(f) for f in p.supports_at_path([pid, 0]))
+        all_depth2.extend(int(s) for s in p.supports_at_path([pid, 0]))
     assert sorted(all_depth2) == root_fns
 
 
@@ -1244,11 +1244,11 @@ def test_octree_hierarchy_dense_parallel_lines_partition_of_function_depth_1():
     for pid in range(4):
         p.refine(Index(pid), PartitionMethod.OCTREE, 1)
     n_fns = len(mesh.function_supports.support_subsegment_pairs)
-    for fi in range(n_fns):
-        root_pid = int(p.partition_of_support(Index(fi)))
+    for si in range(n_fns):
+        root_pid = int(p.partition_of_support(Index(si)))
         child = p.child(Index(root_pid))
         assert child is not None
-        assert int(child.partition_of_support(Index(fi))) == 0
+        assert int(child.partition_of_support(Index(si))) == 0
 
 
 def test_octree_hierarchy_dense_rectangle_n_parts_4_coverage():
@@ -1258,7 +1258,7 @@ def test_octree_hierarchy_dense_rectangle_n_parts_4_coverage():
     assert p.partition_count == 4
     all_fns = []
     for pid in range(4):
-        all_fns.extend(int(f) for f in p.supports_in_partition(Index(pid)))
+        all_fns.extend(int(s) for s in p.supports_in_partition(Index(pid)))
     assert sorted(all_fns) == list(range(400))
 
 
@@ -1267,9 +1267,9 @@ def test_octree_hierarchy_dense_rectangle_refine_child_local_functions():
     mesh = _rectangle_mesh(Real(0.01), 4, PartitionMethod.OCTREE)
     p = mesh.function_supports.partitioner
     for pid in range(4):
-        parent_fns = sorted(int(f) for f in p.supports_in_partition(Index(pid)))
+        parent_fns = sorted(int(s) for s in p.supports_in_partition(Index(pid)))
         child = p.refine(Index(pid), PartitionMethod.OCTREE, 1)
-        assert sorted(int(f) for f in child.support_indices) == parent_fns
+        assert sorted(int(s) for s in child.support_indices) == parent_fns
 
 
 def test_octree_hierarchy_dense_rectangle_coverage_depth_1():
@@ -1278,10 +1278,10 @@ def test_octree_hierarchy_dense_rectangle_coverage_depth_1():
     p = mesh.function_supports.partitioner
     for pid in range(4):
         p.refine(Index(pid), PartitionMethod.OCTREE, 1)
-    root_fns = sorted(int(f) for f in p.support_indices)
+    root_fns = sorted(int(s) for s in p.support_indices)
     all_depth1 = []
     for pid in range(4):
-        all_depth1.extend(int(f) for f in p.supports_at_path([pid]))
+        all_depth1.extend(int(s) for s in p.supports_at_path([pid]))
     assert sorted(all_depth1) == root_fns
 
 
@@ -1292,10 +1292,10 @@ def test_octree_hierarchy_dense_rectangle_coverage_depth_2():
     for pid in range(4):
         child = p.refine(Index(pid), PartitionMethod.OCTREE, 1)
         child.refine(Index(0), PartitionMethod.OCTREE, 1)
-    root_fns = sorted(int(f) for f in p.support_indices)
+    root_fns = sorted(int(s) for s in p.support_indices)
     all_depth2 = []
     for pid in range(4):
-        all_depth2.extend(int(f) for f in p.supports_at_path([pid, 0]))
+        all_depth2.extend(int(s) for s in p.supports_at_path([pid, 0]))
     assert sorted(all_depth2) == root_fns
 
 
@@ -1306,11 +1306,11 @@ def test_octree_hierarchy_dense_rectangle_partition_of_function_depth_1():
     for pid in range(4):
         p.refine(Index(pid), PartitionMethod.OCTREE, 1)
     n_fns = len(mesh.function_supports.support_subsegment_pairs)
-    for fi in range(n_fns):
-        root_pid = int(p.partition_of_support(Index(fi)))
+    for si in range(n_fns):
+        root_pid = int(p.partition_of_support(Index(si)))
         child = p.child(Index(root_pid))
         assert child is not None
-        assert int(child.partition_of_support(Index(fi))) == 0
+        assert int(child.partition_of_support(Index(si))) == 0
 
 
 # ===========================================================================
@@ -1327,11 +1327,11 @@ def test_kahip_hierarchy_dense_parallel_lines_n_parts_4_coverage():
     assert n_fns == 285
     all_fns = []
     for pid in range(4):
-        all_fns.extend(int(f) for f in p.supports_in_partition(Index(pid)))
+        all_fns.extend(int(s) for s in p.supports_in_partition(Index(pid)))
     assert sorted(all_fns) == list(range(n_fns))
-    for fi in range(n_fns):
-        pid = int(p.partition_of_support(Index(fi)))
-        assert Index(fi) in p.supports_in_partition(Index(pid))
+    for si in range(n_fns):
+        pid = int(p.partition_of_support(Index(si)))
+        assert Index(si) in p.supports_in_partition(Index(pid))
 
 
 def test_kahip_hierarchy_dense_parallel_lines_refine_child_local_functions():
@@ -1340,9 +1340,9 @@ def test_kahip_hierarchy_dense_parallel_lines_refine_child_local_functions():
     mesh = _two_parallel_lines_mesh(Real(0.01), 4, PartitionMethod.KAHIP)
     p = mesh.function_supports.partitioner
     for pid in range(4):
-        parent_fns = sorted(int(f) for f in p.supports_in_partition(Index(pid)))
+        parent_fns = sorted(int(s) for s in p.supports_in_partition(Index(pid)))
         child = p.refine(Index(pid), PartitionMethod.KAHIP, 2)
-        assert sorted(int(f) for f in child.support_indices) == parent_fns
+        assert sorted(int(s) for s in child.support_indices) == parent_fns
 
 
 def test_kahip_hierarchy_dense_parallel_lines_refine_child_coverage():
@@ -1351,11 +1351,11 @@ def test_kahip_hierarchy_dense_parallel_lines_refine_child_coverage():
     mesh = _two_parallel_lines_mesh(Real(0.01), 4, PartitionMethod.KAHIP)
     p = mesh.function_supports.partitioner
     for pid in range(4):
-        parent_fns = sorted(int(f) for f in p.supports_in_partition(Index(pid)))
+        parent_fns = sorted(int(s) for s in p.supports_in_partition(Index(pid)))
         child = p.refine(Index(pid), PartitionMethod.KAHIP, 2)
         child_all = []
         for cpid in range(2):
-            child_all.extend(int(f) for f in child.supports_in_partition(Index(cpid)))
+            child_all.extend(int(s) for s in child.supports_in_partition(Index(cpid)))
         assert sorted(child_all) == parent_fns
 
 
@@ -1368,11 +1368,11 @@ def test_kahip_hierarchy_dense_parallel_lines_coverage_depth_2():
         child = p.refine(Index(pid), PartitionMethod.KAHIP, 2)
         for cpid in range(2):
             child.refine(Index(cpid), PartitionMethod.KAHIP, 1)
-    root_fns = sorted(int(f) for f in p.support_indices)
+    root_fns = sorted(int(s) for s in p.support_indices)
     all_depth2 = []
     for pid in range(4):
         for cpid in range(2):
-            all_depth2.extend(int(f) for f in p.supports_at_path([pid, cpid]))
+            all_depth2.extend(int(s) for s in p.supports_at_path([pid, cpid]))
     assert sorted(all_depth2) == root_fns
 
 
@@ -1386,11 +1386,11 @@ def test_kahip_hierarchy_dense_rectangle_n_parts_4_coverage():
     assert n_fns == 400
     all_fns = []
     for pid in range(4):
-        all_fns.extend(int(f) for f in p.supports_in_partition(Index(pid)))
+        all_fns.extend(int(s) for s in p.supports_in_partition(Index(pid)))
     assert sorted(all_fns) == list(range(n_fns))
-    for fi in range(n_fns):
-        pid = int(p.partition_of_support(Index(fi)))
-        assert Index(fi) in p.supports_in_partition(Index(pid))
+    for si in range(n_fns):
+        pid = int(p.partition_of_support(Index(si)))
+        assert Index(si) in p.supports_in_partition(Index(pid))
 
 
 def test_kahip_hierarchy_dense_rectangle_refine_child_local_functions():
@@ -1399,9 +1399,9 @@ def test_kahip_hierarchy_dense_rectangle_refine_child_local_functions():
     mesh = _rectangle_mesh(Real(0.01), 4, PartitionMethod.KAHIP)
     p = mesh.function_supports.partitioner
     for pid in range(4):
-        parent_fns = sorted(int(f) for f in p.supports_in_partition(Index(pid)))
+        parent_fns = sorted(int(s) for s in p.supports_in_partition(Index(pid)))
         child = p.refine(Index(pid), PartitionMethod.KAHIP, 2)
-        assert sorted(int(f) for f in child.support_indices) == parent_fns
+        assert sorted(int(s) for s in child.support_indices) == parent_fns
 
 
 def test_kahip_hierarchy_dense_rectangle_refine_child_coverage():
@@ -1410,11 +1410,11 @@ def test_kahip_hierarchy_dense_rectangle_refine_child_coverage():
     mesh = _rectangle_mesh(Real(0.01), 4, PartitionMethod.KAHIP)
     p = mesh.function_supports.partitioner
     for pid in range(4):
-        parent_fns = sorted(int(f) for f in p.supports_in_partition(Index(pid)))
+        parent_fns = sorted(int(s) for s in p.supports_in_partition(Index(pid)))
         child = p.refine(Index(pid), PartitionMethod.KAHIP, 2)
         child_all = []
         for cpid in range(2):
-            child_all.extend(int(f) for f in child.supports_in_partition(Index(cpid)))
+            child_all.extend(int(s) for s in child.supports_in_partition(Index(cpid)))
         assert sorted(child_all) == parent_fns
 
 
@@ -1427,9 +1427,9 @@ def test_kahip_hierarchy_dense_rectangle_coverage_depth_2():
         child = p.refine(Index(pid), PartitionMethod.KAHIP, 2)
         for cpid in range(2):
             child.refine(Index(cpid), PartitionMethod.KAHIP, 1)
-    root_fns = sorted(int(f) for f in p.support_indices)
+    root_fns = sorted(int(s) for s in p.support_indices)
     all_depth2 = []
     for pid in range(4):
         for cpid in range(2):
-            all_depth2.extend(int(f) for f in p.supports_at_path([pid, cpid]))
+            all_depth2.extend(int(s) for s in p.supports_at_path([pid, cpid]))
     assert sorted(all_depth2) == root_fns
