@@ -51,8 +51,8 @@ class WireMesh3DFill:
         raise Unrecoverable('WireMesh3DFill: unsupported FillChoice')
 
     @staticmethod
-    def _function_support(mesh: WireMesh3D, function_index: Index) -> list[tuple[Index, int]]:
-        s0, s1 = mesh.mesh_functions.pair(function_index)
+    def _function_support(mesh: WireMesh3D, support_index: Index) -> list[tuple[Index, int]]:
+        s0, s1 = mesh.function_supports.pair(support_index)
         a0, a1 = mesh.subsegment_endpoints(s0)
         b0, b1 = mesh.subsegment_endpoints(s1)
         reltol = mesh.reltol
@@ -80,9 +80,9 @@ class WireMesh3DFill:
             raise Unrecoverable('WireMesh3DFill: fill_choice must be FillChoice')
         reltol = Real(max(float(test_mesh.reltol), float(basis_mesh.reltol)))
 
-        def filler(test_function_index: Index, basis_function_index: Index) -> Real:
-            test_support = self._function_support(test_mesh, test_function_index)
-            basis_support = self._function_support(basis_mesh, basis_function_index)
+        def filler(test_support_index: Index, basis_support_index: Index) -> Real:
+            test_support = self._function_support(test_mesh, test_support_index)
+            basis_support = self._function_support(basis_mesh, basis_support_index)
 
             value = Real(0)
             for test_sub_idx, test_local_idx in test_support:

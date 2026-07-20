@@ -12,11 +12,12 @@ if TYPE_CHECKING:
     from .wire_mesh import WireMesh3D
 
 
-class MeshFunctions:
-    """Immutable mapping from function index to subsegment pairs.
+class FunctionSupports:
+    """Immutable mapping from support index to subsegment pairs.
 
-    Each function is represented by a unique unordered pair of subsegments
-    that share exactly one vertex.
+    Each support is represented by a unique unordered pair of subsegments
+    that share exactly one vertex.  The functions to be evaluated on each
+    support are yet to be defined.
     """
 
     def __init__(
@@ -58,48 +59,48 @@ class MeshFunctions:
                         pair_set.add((subsegment_i, subsegment_j))
 
         pairs = sorted(pair_set, key=lambda pair: (int(pair[0]), int(pair[1])))
-        self._function_subsegment_pairs: tuple[tuple[Index, Index], ...] = tuple(pairs)
+        self._support_subsegment_pairs: tuple[tuple[Index, Index], ...] = tuple(pairs)
 
         self._partitioner = Partitioner(mesh, self, method, max_n_parts)
 
     @property
     def partitioner(self) -> Partitioner:
-        '''Partitioner for this function set.'''
+        '''Partitioner for this support set.'''
         return self._partitioner
 
     @partitioner.setter
     def partitioner(self, value) -> None:
-        raise NeverImplement('MeshFunctions partitioner is immutable')
+        raise NeverImplement('FunctionSupports partitioner is immutable')
 
     @property
-    def function_subsegment_pairs(self) -> list[tuple[Index, Index]]:
-        '''List indexed by function index: (subsegment_i, subsegment_j).'''
-        return list(self._function_subsegment_pairs)
+    def support_subsegment_pairs(self) -> list[tuple[Index, Index]]:
+        '''List indexed by support index: (subsegment_i, subsegment_j).'''
+        return list(self._support_subsegment_pairs)
 
-    @function_subsegment_pairs.setter
-    def function_subsegment_pairs(self, value) -> None:
-        raise NeverImplement('MeshFunctions function_subsegment_pairs are immutable')
+    @support_subsegment_pairs.setter
+    def support_subsegment_pairs(self, value) -> None:
+        raise NeverImplement('FunctionSupports support_subsegment_pairs are immutable')
 
     @property
-    def function_map(self) -> dict[Index, tuple[Index, Index]]:
-        '''Dict mapping function index -> (subsegment_i, subsegment_j).'''
+    def support_map(self) -> dict[Index, tuple[Index, Index]]:
+        '''Dict mapping support index -> (subsegment_i, subsegment_j).'''
         return {
             Index(i): pair
-            for i, pair in enumerate(self._function_subsegment_pairs)
+            for i, pair in enumerate(self._support_subsegment_pairs)
         }
 
-    @function_map.setter
-    def function_map(self, value) -> None:
-        raise NeverImplement('MeshFunctions function_map is immutable')
+    @support_map.setter
+    def support_map(self, value) -> None:
+        raise NeverImplement('FunctionSupports support_map is immutable')
 
-    def pair(self, function_index: Index) -> tuple[Index, Index]:
-        idx = int(function_index)
-        if idx < 0 or idx >= len(self._function_subsegment_pairs):
+    def pair(self, support_index: Index) -> tuple[Index, Index]:
+        idx = int(support_index)
+        if idx < 0 or idx >= len(self._support_subsegment_pairs):
             raise Unrecoverable(
                 ''.join([
-                    'MeshFunctions: function index ', str(idx),
-                    ' is out of range for ', str(len(self._function_subsegment_pairs)),
-                    ' functions',
+                    'FunctionSupports: support index ', str(idx),
+                    ' is out of range for ', str(len(self._support_subsegment_pairs)),
+                    ' supports',
                 ])
             )
-        return self._function_subsegment_pairs[idx]
+        return self._support_subsegment_pairs[idx]

@@ -7,7 +7,7 @@ from ..common import Index, Integer, Real
 from ..errors import NeverImplement
 from ..errors import NotYetImplemented
 from ..errors import Unrecoverable
-from .mesh_functions import MeshFunctions
+from .function_supports import FunctionSupports
 from .partitioner import PartitionMethod
 from ..r3 import R3Vector, vector_copy, vector_equality, Octree, TOLERANCE
 
@@ -404,7 +404,7 @@ class WireMesh3D:
             subsegment_point_pairs.append((start_idx, end_idx))
         self._subsegment_point_pairs = subsegment_point_pairs
 
-        self._mesh_functions = MeshFunctions(self, self._method, self._max_n_parts)
+        self._function_supports = FunctionSupports(self, self._method, self._max_n_parts)
 
     @property
     def named_polylines(self) -> dict[str, list[R3Vector]]:
@@ -536,13 +536,13 @@ class WireMesh3D:
         raise NeverImplement('WireMesh3D subsegment_point_pairs are immutable')
 
     @property
-    def mesh_functions(self) -> MeshFunctions:
-        '''Function-index mapping for this mesh.'''
-        return self._mesh_functions
+    def function_supports(self) -> FunctionSupports:
+        '''Function-support mapping for this mesh.'''
+        return self._function_supports
 
-    @mesh_functions.setter
-    def mesh_functions(self, value) -> None:
-        raise NeverImplement('WireMesh3D mesh_functions are immutable')
+    @function_supports.setter
+    def function_supports(self, value) -> None:
+        raise NeverImplement('WireMesh3D function_supports are immutable')
 
     @classmethod
     def _with_shared_registry(
@@ -569,7 +569,7 @@ class WireMesh3D:
         ]
         instance._method = source._method
         instance._max_n_parts = source._max_n_parts
-        instance._mesh_functions = MeshFunctions(instance, source._method, source._max_n_parts)
+        instance._function_supports = FunctionSupports(instance, source._method, source._max_n_parts)
         return instance
 
 
