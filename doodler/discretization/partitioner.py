@@ -87,7 +87,7 @@ class Partitioner:
         Upper bound on the number of partitions.  Must be >= 1.  The
         actual partition count returned by :attr:`partition_count` may
         be less than *max_n_parts* depending on the geometry.
-    local_function_indices:
+    function_indices:
         Tuple of global function indices that this partition node covers.  When
         ``None`` (the default for the root node) all functions in
         *mesh_functions* are included.
@@ -99,7 +99,7 @@ class Partitioner:
         mesh_functions: "MeshFunctions",
         method: PartitionMethod,
         max_n_parts: int,
-        local_function_indices: tuple[Index, ...] | None = None,
+        function_indices: tuple[Index, ...] | None = None,
     ) -> None:
         max_n_parts = int(max_n_parts)
         if max_n_parts < 1:
@@ -117,19 +117,19 @@ class Partitioner:
         subseg_pairs = mesh.subsegment_point_pairs
         all_pairs = mesh_functions.function_subsegment_pairs
 
-        if local_function_indices is None:
-            local_function_indices = tuple(Index(i) for i in range(len(all_pairs)))
+        if function_indices is None:
+            function_indices = tuple(Index(i) for i in range(len(all_pairs)))
 
-        self._local_function_indices: tuple[Index, ...] = local_function_indices
-        n_local = len(local_function_indices)
+        self._function_indices: tuple[Index, ...] = function_indices
+        n_local = len(function_indices)
 
-        # Fast lookup: global function index -> position in _local_function_indices.
+        # Fast lookup: global function index -> position in _function_indices.
         self._local_index_map: dict[int, int] = {
-            int(fi): pos for pos, fi in enumerate(local_function_indices)
+            int(fi): pos for pos, fi in enumerate(function_indices)
         }
 
         # Restrict the subsegment-pair list to local functions only.
-        local_pairs = [all_pairs[int(fi)] for fi in local_function_indices]
+        local_pairs = [all_pairs[int(fi)] for fi in function_indices]
 
         if method == PartitionMethod.OCTREE:
             assignment = self._build_octree(mesh, local_pairs, subseg_pairs, max_n_parts)
@@ -155,7 +155,7 @@ class Partitioner:
         # Build reverse mapping: partition_id -> sorted tuple of GLOBAL function indices.
         buckets: dict[int, list[int]] = {}
         for local_pos, part_id in enumerate(assignment):
-            global_fi = int(local_function_indices[local_pos])
+            global_fi = int(function_indices[local_pos])
             buckets.setdefault(int(part_id), []).append(global_fi)
         self._partition_to_functions: tuple[tuple[Index, ...], ...] = tuple(
             tuple(Index(fi) for fi in sorted(buckets.get(pid, [])))
@@ -303,13 +303,13 @@ class Partitioner:
     # ------------------------------------------------------------------
 
     @property
-    def local_function_indices(self) -> list[Index]:
+    def function_indices(self) -> list[Index]:
         """Copy of the global function indices covered by this partition node."""
-        return list(self._local_function_indices)
+        return list(self._function_indices)
 
-    @local_function_indices.setter
-    def local_function_indices(self, value) -> None:
-        raise NeverImplement('Partitioner local_function_indices is immutable')
+    @function_indices.setter
+    def function_indices(self, value) -> None:
+        raise NeverImplement('Partitioner function_indices is immutable')
 
     @property
     def children(self) -> tuple[Partitioner | None, ...]:
@@ -459,17 +459,17 @@ class Partitioner:
     def functions_at_path(self, path: list[int]) -> list[Index]:
         """Return the global function indices held at the node reached by *path*.
 
-        Equivalent to ``node_at_path(path).local_function_indices`` but more
+        Equivalent to ``node_at_path(path).function_indices`` but more
         convenient for bulk lookup across levels.
 
-        An empty *path* returns this node's :attr:`local_function_indices`.
+        An empty *path* returns this node's :attr:`function_indices`.
 
         Raises
         ------
         Unrecoverable
             If the path is invalid (see :meth:`node_at_path`).
         """
-        return self.node_at_path(path).local_function_indices
+        return self.node_at_path(path).function_indices
 
     # ------------------------------------------------------------------
     # Query API
@@ -517,7 +517,7 @@ class Partitioner:
                 ''.join([
                     'Partitioner: function_index ', str(fi),
                     ' is not in this partition node (',
-                    str(len(self._local_function_indices)), ' local functions)',
+                    str(len(self._function_indices)), ' local functions)',
                 ])
             )
         return self._partition_assignment[self._local_index_map[fi]]
