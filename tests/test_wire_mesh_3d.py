@@ -82,7 +82,7 @@ def test_wire_mesh_3d_inter_shared_start_start_supported():
     poly_b = [_pt(0, 0, 0), _pt(0, 1, 0)]  # same start point
     mesh = WireMesh3D({'a': poly_a, 'b': poly_b}, _H, _TOL)
     assert set(mesh.named_polylines.keys()) == {'a', 'b'}
-    pairs = mesh.mesh_functions.function_subsegment_pairs
+    pairs = mesh.function_supports.support_subsegment_pairs
     shared = np.array([Real(0), Real(0), Real(0)])
     assert any(
         np.allclose(mesh.subsegment_endpoints(i)[0], shared, atol=float(_TOL))
@@ -98,7 +98,7 @@ def test_wire_mesh_3d_inter_shared_end_end_supported():
     poly_b = [_pt(0, 1, 0), _pt(1, 0, 0)]  # same end point
     mesh = WireMesh3D({'a': poly_a, 'b': poly_b}, _H, _TOL)
     assert set(mesh.named_polylines.keys()) == {'a', 'b'}
-    pairs = mesh.mesh_functions.function_subsegment_pairs
+    pairs = mesh.function_supports.support_subsegment_pairs
     shared = np.array([Real(1), Real(0), Real(0)])
     assert any(
         np.allclose(mesh.subsegment_endpoints(i)[0], shared, atol=float(_TOL))
@@ -114,7 +114,7 @@ def test_wire_mesh_3d_inter_shared_start_end_supported():
     poly_b = [_pt(0, 0, 0), _pt(1, 0, 0)]  # end of b == start of a
     mesh = WireMesh3D({'a': poly_a, 'b': poly_b}, _H, _TOL)
     assert set(mesh.named_polylines.keys()) == {'a', 'b'}
-    pairs = mesh.mesh_functions.function_subsegment_pairs
+    pairs = mesh.function_supports.support_subsegment_pairs
     shared = np.array([Real(1), Real(0), Real(0)])
     assert any(
         np.allclose(mesh.subsegment_endpoints(i)[0], shared, atol=float(_TOL))
@@ -544,14 +544,14 @@ def test_unify_meshes_preserves_subsegment_endpoints():
 
 
 def test_unify_meshes_preserves_mesh_functions():
-    # Two polylines sharing an endpoint -> mesh functions should still work after unification.
+    # Two polylines sharing an endpoint -> function supports should still work after unification.
     poly_a = [_pt(0, 0, 0), _pt(1, 0, 0)]
     poly_b = [_pt(1, 0, 0), _pt(2, 0, 0)]
     mesh_a = WireMesh3D({'a': poly_a, 'b': poly_b}, Real(1.0), _TOL)
     mesh_b = WireMesh3D({'c': [_pt(5, 0, 0), _pt(6, 0, 0)]}, Real(1.0), _TOL)
     ua, ub = unify_meshes(mesh_a, mesh_b)
-    # mesh_a has a function connecting the two subsegments; that should be preserved.
-    assert len(ua.mesh_functions.function_subsegment_pairs) == len(mesh_a.mesh_functions.function_subsegment_pairs)
+    # mesh_a has a support connecting the two subsegments; that should be preserved.
+    assert len(ua.function_supports.support_subsegment_pairs) == len(mesh_a.function_supports.support_subsegment_pairs)
 
 
 def test_unify_meshes_vertex_xyz_consistent():

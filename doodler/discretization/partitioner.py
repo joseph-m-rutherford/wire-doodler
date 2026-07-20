@@ -13,60 +13,60 @@ from ..errors import NeverImplement, Recoverable, Unrecoverable
 from ..r3 import Octree, R3Vector, vector_copy
 
 if TYPE_CHECKING:
-    from .mesh_functions import MeshFunctions
+    from .function_supports import FunctionSupports
     from .wire_mesh import WireMesh3D
 
 
 class PartitionMethod(str, Enum):
-    """Strategy used by :class:`Partitioner` to assign functions to partitions."""
+    """Strategy used by :class:`Partitioner` to assign supports to partitions."""
     OCTREE = 'octree'
     KAHIP = 'kahip'
 
 
 def _build_adjacency_list(
-    mesh_functions: "MeshFunctions",
+    function_supports: "FunctionSupports",
     subseg_point_pairs: list[tuple[Index, Index]],
 ) -> list[list[int]]:
-    """Build a vertex-sharing adjacency list over functions.
+    """Build a vertex-sharing adjacency list over supports.
 
-    Two functions are adjacent iff any vertex index (start or end of either
-    subsegment) appears in both functions' combined vertex sets.
+    Two supports are adjacent iff any vertex index (start or end of either
+    subsegment) appears in both supports' combined vertex sets.
 
-    Returns a list of length ``n_functions`` where entry *i* is the sorted
-    list of function indices adjacent to function *i* (excluding *i* itself).
+    Returns a list of length ``n_supports`` where entry *i* is the sorted
+    list of support indices adjacent to support *i* (excluding *i* itself).
     """
-    pairs = mesh_functions.function_subsegment_pairs
-    n_functions = len(pairs)
+    pairs = function_supports.support_subsegment_pairs
+    n_supports = len(pairs)
 
-    # Map vertex index -> list of function indices incident to that vertex.
-    vertex_to_functions: dict[int, list[int]] = {}
-    for fn_idx, (sub_i, sub_j) in enumerate(pairs):
+    # Map vertex index -> list of support indices incident to that vertex.
+    vertex_to_supports: dict[int, list[int]] = {}
+    for support_idx, (sub_i, sub_j) in enumerate(pairs):
         a0, a1 = subseg_point_pairs[int(sub_i)]
         b0, b1 = subseg_point_pairs[int(sub_j)]
         for v in (int(a0), int(a1), int(b0), int(b1)):
-            vertex_to_functions.setdefault(v, []).append(fn_idx)
+            vertex_to_supports.setdefault(v, []).append(support_idx)
 
-    adj: list[set[int]] = [set() for _ in range(n_functions)]
-    for fn_list in vertex_to_functions.values():
-        for i in range(len(fn_list)):
-            for j in range(i + 1, len(fn_list)):
-                fi, fj = fn_list[i], fn_list[j]
-                if fi != fj:  # skip self-loops from double-registered shared vertices
-                    adj[fi].add(fj)
-                    adj[fj].add(fi)
+    adj: list[set[int]] = [set() for _ in range(n_supports)]
+    for support_list in vertex_to_supports.values():
+        for i in range(len(support_list)):
+            for j in range(i + 1, len(support_list)):
+                si, sj = support_list[i], support_list[j]
+                if si != sj:  # skip self-loops from double-registered shared vertices
+                    adj[si].add(sj)
+                    adj[sj].add(si)
 
     return [sorted(neighbors) for neighbors in adj]
 
 
 class Partitioner:
-    """Partition the function index set of a :class:`~doodler.discretization.MeshFunctions`
+    """Partition the support index set of a :class:`~doodler.discretization.FunctionSupports`
     into at most *max_n_parts* non-overlapping, collectively exhaustive groups.
 
     The partition can be built using one of two strategies:
 
-    * :attr:`PartitionMethod.OCTREE` — purely spatial.  Each function is
+    * :attr:`PartitionMethod.OCTREE` — purely spatial.  Each support is
       represented by its shared vertex (the single vertex where the two
-      subsegments of the function pair meet).  The finest (deepest) octree
+      subsegments of the support pair meet).  The finest (deepest) octree
       depth that produces at most *max_n_parts* occupied cells is selected.
       The actual partition count (≤ *max_n_parts*) depends on the geometry.
 
@@ -78,28 +78,28 @@ class Partitioner:
     Parameters
     ----------
     mesh:
-        The :class:`~doodler.discretization.WireMesh3D` the functions live on.
-    mesh_functions:
-        The :class:`~doodler.discretization.MeshFunctions` to partition.
+        The :class:`~doodler.discretization.WireMesh3D` the supports live on.
+    function_supports:
+        The :class:`~doodler.discretization.FunctionSupports` to partition.
     method:
         One of the :class:`PartitionMethod` strategies.
     max_n_parts:
         Upper bound on the number of partitions.  Must be >= 1.  The
         actual partition count returned by :attr:`partition_count` may
         be less than *max_n_parts* depending on the geometry.
-    function_indices:
-        Tuple of global function indices that this partition node covers.  When
-        ``None`` (the default for the root node) all functions in
-        *mesh_functions* are included.
+    support_indices:
+        Tuple of global support indices that this partition node covers.  When
+        ``None`` (the default for the root node) all supports in
+        *function_supports* are included.
     """
 
     def __init__(
         self,
         mesh: "WireMesh3D",
-        mesh_functions: "MeshFunctions",
+        function_supports: "FunctionSupports",
         method: PartitionMethod,
         max_n_parts: int,
-        function_indices: tuple[Index, ...] | None = None,
+        support_indices: tuple[Index, ...] | None = None,
     ) -> None:
         max_n_parts = int(max_n_parts)
         if max_n_parts < 1:
@@ -112,24 +112,24 @@ class Partitioner:
             raise Unrecoverable(f'Partitioner: unknown method {method!r}') from e
         # Keep references for child construction via refine().
         self._mesh = mesh
-        self._mesh_functions = mesh_functions
+        self._function_supports = function_supports
 
         subseg_pairs = mesh.subsegment_point_pairs
-        all_pairs = mesh_functions.function_subsegment_pairs
+        all_pairs = function_supports.support_subsegment_pairs
 
-        if function_indices is None:
-            function_indices = tuple(Index(i) for i in range(len(all_pairs)))
+        if support_indices is None:
+            support_indices = tuple(Index(i) for i in range(len(all_pairs)))
 
-        self._function_indices: tuple[Index, ...] = function_indices
-        n_local = len(function_indices)
+        self._support_indices: tuple[Index, ...] = support_indices
+        n_local = len(support_indices)
 
-        # Fast lookup: global function index -> position in _function_indices.
+        # Fast lookup: global support index -> position in _support_indices.
         self._local_index_map: dict[int, int] = {
-            int(fi): pos for pos, fi in enumerate(function_indices)
+            int(si): pos for pos, si in enumerate(support_indices)
         }
 
-        # Restrict the subsegment-pair list to local functions only.
-        local_pairs = [all_pairs[int(fi)] for fi in function_indices]
+        # Restrict the subsegment-pair list to local supports only.
+        local_pairs = [all_pairs[int(si)] for si in support_indices]
 
         if method == PartitionMethod.OCTREE:
             assignment = self._build_octree(mesh, local_pairs, subseg_pairs, max_n_parts)
@@ -145,20 +145,20 @@ class Partitioner:
         if used_ids and used_ids != list(range(len(used_ids))):
             id_map = {old: new for new, old in enumerate(used_ids)}
             assignment = [id_map[a] for a in assignment]
-        # Always maintain at least one partition slot (for the empty-function case).
+        # Always maintain at least one partition slot (for the empty-support case).
         actual_count = max(1, len(used_ids))
 
         self._partition_assignment: tuple[Index, ...] = tuple(
             Index(p) for p in assignment
         )
 
-        # Build reverse mapping: partition_id -> sorted tuple of GLOBAL function indices.
+        # Build reverse mapping: partition_id -> sorted tuple of GLOBAL support indices.
         buckets: dict[int, list[int]] = {}
         for local_pos, part_id in enumerate(assignment):
-            global_fi = int(function_indices[local_pos])
-            buckets.setdefault(int(part_id), []).append(global_fi)
-        self._partition_to_functions: tuple[tuple[Index, ...], ...] = tuple(
-            tuple(Index(fi) for fi in sorted(buckets.get(pid, [])))
+            global_si = int(support_indices[local_pos])
+            buckets.setdefault(int(part_id), []).append(global_si)
+        self._partition_to_supports: tuple[tuple[Index, ...], ...] = tuple(
+            tuple(Index(si) for si in sorted(buckets.get(pid, [])))
             for pid in range(actual_count)
         )
 
@@ -192,14 +192,14 @@ class Partitioner:
         subseg_pairs: list[tuple[Index, Index]],
         max_n_parts: int,
     ) -> list[int]:
-        """Partition functions spatially by their shared-vertex Morton key.
+        """Partition supports spatially by their shared-vertex Morton key.
 
         Finds the finest (deepest) octree depth where the number of occupied
         cells does not exceed *max_n_parts*.  The actual partition count
         (≤ *max_n_parts*) is determined by the geometry.
         """
-        n_functions = len(pairs)
-        if n_functions == 0:
+        n_supports = len(pairs)
+        if n_supports == 0:
             return []
 
         # Collect shared-vertex coordinates.
@@ -208,7 +208,7 @@ class Partitioner:
             sv_idx = Partitioner._shared_vertex_index(sub_i, sub_j, subseg_pairs)
             shared_coords.append(mesh.vertex_xyz(sv_idx))
 
-        coords_arr = np.array(shared_coords)  # shape (n_functions, 3)
+        coords_arr = np.array(shared_coords)  # shape (n_supports, 3)
         bbox_min = vector_copy(np.min(coords_arr, axis=0))
         bbox_max = vector_copy(np.max(coords_arr, axis=0))
 
@@ -254,9 +254,9 @@ class Partitioner:
         pairs: list[tuple[Index, Index]],
         subseg_pairs: list[tuple[Index, Index]],
         max_n_parts: int,
-        n_functions: int,
+        n_supports: int,
     ) -> list[int]:
-        """Partition functions using KaHIP (KaFFPa) graph partitioning."""
+        """Partition supports using KaHIP (KaFFPa) graph partitioning."""
         try:
             import kahip  # type: ignore[import]
         except ImportError as exc:
@@ -264,17 +264,17 @@ class Partitioner:
                 'Partitioner: kahip is not installed; install it with "pip install kahip"'
             ) from exc
 
-        if n_functions == 0:
+        if n_supports == 0:
             return []
 
         # kaffpa requires n_parts >= 2; the trivial single-partition case is
         # handled here to avoid passing max_n_parts=1 into the C extension.
         if max_n_parts == 1:
-            return [0] * n_functions
+            return [0] * n_supports
 
         class _Proxy:
             def __init__(self, p):
-                self.function_subsegment_pairs = p
+                self.support_subsegment_pairs = p
 
         adj = _build_adjacency_list(_Proxy(pairs), subseg_pairs)  # type: ignore[arg-type]
 
@@ -285,7 +285,7 @@ class Partitioner:
             adjncy.extend(neighbors)
             xadj.append(len(adjncy))
 
-        vwgt = [1] * n_functions
+        vwgt = [1] * n_supports
         adjcwgt = [1] * len(adjncy)
 
         _edgecut, blocks = kahip.kaffpa(
@@ -303,13 +303,13 @@ class Partitioner:
     # ------------------------------------------------------------------
 
     @property
-    def function_indices(self) -> list[Index]:
-        """Copy of the global function indices covered by this partition node."""
-        return list(self._function_indices)
+    def support_indices(self) -> list[Index]:
+        """Copy of the global support indices covered by this partition node."""
+        return list(self._support_indices)
 
-    @function_indices.setter
-    def function_indices(self, value) -> None:
-        raise NeverImplement('Partitioner function_indices is immutable')
+    @support_indices.setter
+    def support_indices(self, value) -> None:
+        raise NeverImplement('Partitioner support_indices is immutable')
 
     @property
     def children(self) -> tuple[Partitioner | None, ...]:
@@ -349,7 +349,7 @@ class Partitioner:
 
     @property
     def partition_assignment(self) -> list[Index]:
-        """Copy of the per-function partition assignment array."""
+        """Copy of the per-support partition assignment array."""
         return list(self._partition_assignment)
 
     @partition_assignment.setter
@@ -387,7 +387,7 @@ class Partitioner:
     ) -> Partitioner:
         """Create and attach a child :class:`Partitioner` for *partition_id*.
 
-        The child covers exactly the global function indices currently assigned
+        The child covers exactly the global support indices currently assigned
         to *partition_id* at this node and partitions them into at most
         *max_n_parts* sub-groups using *method*.  Any previously attached child
         for *partition_id* is replaced.
@@ -419,10 +419,10 @@ class Partitioner:
                     ' is out of range for ', str(self._n_parts), ' partitions',
                 ])
             )
-        child_indices = self._partition_to_functions[pid]
+        child_indices = self._partition_to_supports[pid]
         child = Partitioner(
             self._mesh,
-            self._mesh_functions,
+            self._function_supports,
             method,
             max_n_parts,
             child_indices,
@@ -456,27 +456,27 @@ class Partitioner:
             node = c
         return node
 
-    def functions_at_path(self, path: list[int]) -> list[Index]:
-        """Return the global function indices held at the node reached by *path*.
+    def supports_at_path(self, path: list[int]) -> list[Index]:
+        """Return the global support indices held at the node reached by *path*.
 
-        Equivalent to ``node_at_path(path).function_indices`` but more
+        Equivalent to ``node_at_path(path).support_indices`` but more
         convenient for bulk lookup across levels.
 
-        An empty *path* returns this node's :attr:`function_indices`.
+        An empty *path* returns this node's :attr:`support_indices`.
 
         Raises
         ------
         Unrecoverable
             If the path is invalid (see :meth:`node_at_path`).
         """
-        return self.node_at_path(path).function_indices
+        return self.node_at_path(path).support_indices
 
     # ------------------------------------------------------------------
     # Query API
     # ------------------------------------------------------------------
 
-    def functions_in_partition(self, partition_id: Index) -> list[Index]:
-        """Return a sorted list of function indices belonging to *partition_id*.
+    def supports_in_partition(self, partition_id: Index) -> list[Index]:
+        """Return a sorted list of support indices belonging to *partition_id*.
 
         Parameters
         ----------
@@ -496,28 +496,29 @@ class Partitioner:
                     ' is out of range for ', str(self._n_parts), ' partitions',
                 ])
             )
-        return list(self._partition_to_functions[pid])
+        return list(self._partition_to_supports[pid])
 
-    def partition_of_function(self, function_index: Index) -> Index:
-        """Return the partition id that contains *function_index*.
+    def partition_of_support(self, support_index: Index) -> Index:
+        """Return the partition id that contains *support_index*.
 
         Parameters
         ----------
-        function_index:
-            Zero-based function index in ``[0, len(function_subsegment_pairs))``.
+        support_index:
+            Zero-based support index in ``[0, len(support_subsegment_pairs))``.
 
         Raises
         ------
         Unrecoverable
-            If *function_index* is out of range.
+            If *support_index* is out of range.
         """
-        fi = int(function_index)
-        if fi not in self._local_index_map:
+        si = int(support_index)
+        if si not in self._local_index_map:
             raise Unrecoverable(
                 ''.join([
-                    'Partitioner: function_index ', str(fi),
+                    'Partitioner: support_index ', str(si),
                     ' is not in this partition node (',
-                    str(len(self._function_indices)), ' local functions)',
+                    str(len(self._support_indices)), ' local supports',
+                    ')',
                 ])
             )
-        return self._partition_assignment[self._local_index_map[fi]]
+        return self._partition_assignment[self._local_index_map[si]]

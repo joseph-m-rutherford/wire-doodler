@@ -15,8 +15,8 @@
   - `geometry/wire_segments.py`: `WireSegment2D` immutable 2-D segment data + `as_xyz` transform from local UV to global XYZ.
 - `doodler/discretization/` contains wire-mesh discretization and partitioning logic:
   - `discretization/wire_mesh.py`: `WireMesh3D` mesh construction, collision/intersection checks, and flat subsegment indexing.
-  - `discretization/mesh_functions.py`: `MeshFunctions` mapping from function index to subsegment-pair support.
-  - `discretization/partitioner.py`: `Partitioner`/`PartitionMethod` hierarchical spatial (octree) and graph-based (KaHIP) partitioning of function indices.
+  - `discretization/function_supports.py`: `FunctionSupports` mapping from support index to subsegment-pair support. The functions to be evaluated on each support are yet to be defined.
+  - `discretization/partitioner.py`: `Partitioner`/`PartitionMethod` hierarchical spatial (octree) and graph-based (KaHIP) partitioning of support indices.
 - `doodler/operators/` contains wire-operator assembly logic:
   - `operators/fillers.py`: `WireMesh3DFill` and `FillChoice` for mass/stiffness local assembly over overlapping mesh support.
 - `doodler/io_formats/` handles external formats:
@@ -66,7 +66,7 @@
 
 **Module Dependency Flow**
 - **SVG → 2D → 3D:** `io_formats/svg_reader.py` parses SVG into `WireSegment2D`; `geometry.wire_segments.as_xyz` maps (u,v) in a supplied `uvw` frame + `xyz_offset` to global 3‑D points.
-- **Wire mesh pipeline:** `discretization/wire_mesh.py` builds `WireMesh3D` from named polylines (output of `as_xyz`); it constructs the flat `subsegment_index` and uses `discretization.mesh_functions.MeshFunctions` to enumerate function support pairs, which in turn builds a `discretization.partitioner.Partitioner` tree.
-- **Local assembly:** `operators/fillers.py` (`WireMesh3DFill`) consumes `WireMesh3D` and `MeshFunctions` to produce mass/stiffness filler callables for overlapping function supports.
+- **Wire mesh pipeline:** `discretization/wire_mesh.py` builds `WireMesh3D` from named polylines (output of `as_xyz`); it constructs the flat `subsegment_index` and uses `discretization.function_supports.FunctionSupports` to enumerate support pairs, which in turn builds a `discretization.partitioner.Partitioner` tree.
+- **Local assembly:** `operators/fillers.py` (`WireMesh3DFill`) consumes `WireMesh3D` and `FunctionSupports` to produce mass/stiffness filler callables for overlapping supports.
 - **Geometry sampling:** `geometry.sampler.Shape3DSampler` selects quadrature sizes from `quadrature.RuleCache` and maps 2‑D rule points to 3‑D coordinates on `Shape3D` implementations (cylinder, clipped sphere).
-- **Public surface:** `doodler/__init__.py` re-exports the main user-facing symbols (`as_xyz`, `WireMesh3D`, `MeshFunctions`, `Partitioner`, `PartitionMethod`, `WireMesh3DFill`, `FillChoice`, geometry primitives, and quadrature helpers).
+- **Public surface:** `doodler/__init__.py` re-exports the main user-facing symbols (`as_xyz`, `WireMesh3D`, `FunctionSupports`, `Partitioner`, `PartitionMethod`, `WireMesh3DFill`, `FillChoice`, geometry primitives, and quadrature helpers).
