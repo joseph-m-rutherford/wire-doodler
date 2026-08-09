@@ -3,4 +3,5 @@
 
 from .function_supports import FunctionSupports
 from .partitioner import PartitionMethod, Partitioner
+from .wire_functions import WireScalarFunction
 from .wire_mesh import PointRegistry, WireMesh3D, unify_meshes

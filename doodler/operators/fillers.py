@@ -8,10 +8,13 @@ import numpy as np
 
 from ..common import Index, Real
 from ..errors import NeverImplement
+from ..errors import NotYetImplemented
 from ..errors import Unrecoverable
+from ..discretization.function_supports import FunctionSupports
+from ..discretization.wire_functions import WireScalarFunction
 from ..discretization.wire_mesh import WireMesh3D
+from ..quadrature.rules import Rule1D
 from ..r3 import vector_equality
-
 
 class FillChoice(str, Enum):
     MASS = 'mass'
@@ -39,20 +42,27 @@ class WireMesh3DFill:
         length: Real,
         test_local_index: int,
         basis_local_index: int,
+        axial_rule: Rule1D,
     ) -> Real:
+        positions = axial_rule.positions
+        weights = axial_rule.weights
+
+        phi = np.array([(1.0 - positions) / 2.0, (1.0 + positions) / 2.0], dtype=Real)
+        dphi = np.array([-0.5, 0.5], dtype=Real)
+
         if fill_choice == FillChoice.MASS:
-            mass = np.array([[2.0, 1.0], [1.0, 2.0]], dtype=Real)
-            return Real((length / Real(6.0)) * mass[test_local_index, basis_local_index])
+            integrand = phi[test_local_index] * phi[basis_local_index]
+            return Real((length / Real(2.0)) * np.sum(weights * integrand))
 
         if fill_choice == FillChoice.STIFFNESS:
-            stiff = np.array([[1.0, -1.0], [-1.0, 1.0]], dtype=Real)
-            return Real((Real(1.0) / length) * stiff[test_local_index, basis_local_index])
+            integrand = dphi[test_local_index] * dphi[basis_local_index]
+            return Real((Real(2.0) / length) * np.sum(weights * integrand))
 
         raise Unrecoverable('WireMesh3DFill: unsupported FillChoice')
 
     @staticmethod
-    def _function_support(mesh: WireMesh3D, support_index: Index) -> list[tuple[Index, int]]:
-        s0, s1 = mesh.function_supports.pair(support_index)
+    def _function_support(mesh: WireMesh3D, supports: FunctionSupports, support_index: Index) -> list[tuple[Index, int]]:
+        s0, s1 = supports.pair(support_index)
         a0, a1 = mesh.subsegment_endpoints(s0)
         b0, b1 = mesh.subsegment_endpoints(s1)
         reltol = mesh.reltol
@@ -73,16 +83,29 @@ class WireMesh3DFill:
     def make_filler(
         self,
         test_mesh: WireMesh3D,
+        test_supports: FunctionSupports,
+        test_function: WireScalarFunction,
         basis_mesh: WireMesh3D,
+        basis_supports: FunctionSupports,
+        basis_function: WireScalarFunction,
         fill_choice: FillChoice = FillChoice.MASS,
     ) -> Callable[[Index, Index], Real]:
         if not isinstance(fill_choice, FillChoice):
             raise Unrecoverable('WireMesh3DFill: fill_choice must be FillChoice')
+        if test_function.axial_order != 1 or basis_function.axial_order != 1:
+            raise NotYetImplemented(
+                'WireMesh3DFill: only axial_order=1 is currently supported'
+            )
+        if test_function.azimuthal_order != 0 or basis_function.azimuthal_order != 0:
+            raise NotYetImplemented(
+                'WireMesh3DFill: only azimuthal_order=0 is currently supported'
+            )
         reltol = Real(max(float(test_mesh.reltol), float(basis_mesh.reltol)))
+        axial_rule = test_function.quadrature_rule.rule_2
 
         def filler(test_support_index: Index, basis_support_index: Index) -> Real:
-            test_support = self._function_support(test_mesh, test_support_index)
-            basis_support = self._function_support(basis_mesh, basis_support_index)
+            test_support = self._function_support(test_mesh, test_supports, test_support_index)
+            basis_support = self._function_support(basis_mesh, basis_supports, basis_support_index)
 
             value = Real(0)
             for test_sub_idx, test_local_idx in test_support:
@@ -109,6 +132,7 @@ class WireMesh3DFill:
                             length,
                             test_local_idx,
                             basis_j,
+                            axial_rule,
                         )
                     )
 

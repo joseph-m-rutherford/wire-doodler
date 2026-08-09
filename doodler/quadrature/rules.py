@@ -83,6 +83,22 @@ class Rule2D:
         raise NeverImplement('Quadrature labels are fixed after initialization.')
 
     @property
+    def rule_1(self) -> Rule1D:
+        '''First (azimuthal) component 1D rule'''
+        return self._rule_1
+    @rule_1.setter
+    def rule_1(self,value) -> None:
+        raise NeverImplement('Quadrature rule_1 is fixed after initialization.')
+
+    @property
+    def rule_2(self) -> Rule1D:
+        '''Second (axial) component 1D rule'''
+        return self._rule_2
+    @rule_2.setter
+    def rule_2(self,value) -> None:
+        raise NeverImplement('Quadrature rule_2 is fixed after initialization.')
+
+    @property
     def size(self):
         '''Size for each quadrature rule'''
         return self._rule_1.size,self._rule_2.size
