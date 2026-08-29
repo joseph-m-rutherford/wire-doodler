@@ -16,8 +16,8 @@ _pt = r3.vector
 
 
 def _named(polylines: dict) -> dict:
-    """Wrap plain {name: points} dicts into WireMesh3D's {name: (description, points)} format."""
-    return {name: (name, points) for name, points in polylines.items()}
+    """Wrap plain {name: points} dicts into WireMesh3D's {name: (radius_str, points)} format."""
+    return {name: ('1.0', points) for name, points in polylines.items()}
 
 
 # Two well-separated, non-intersecting polylines used as the "happy path".
@@ -49,6 +49,72 @@ def test_wire_mesh_3d_zero_reltol_raises():
 def test_wire_mesh_3d_negative_reltol_raises():
     with pytest.raises(Unrecoverable):
         WireMesh3D(_named({'a': _POLY_A}), _H, Real(-1))
+
+
+# ---------------------------------------------------------------------------
+# WireMesh3D — description parsed as radius
+# ---------------------------------------------------------------------------
+
+def test_wire_mesh_3d_description_parsed_as_radius():
+    mesh = WireMesh3D({'a': ('2.5', _POLY_A)}, _H, _TOL)
+    assert mesh.descriptions == [Real(2.5)]
+
+
+def test_wire_mesh_3d_invalid_description_raises_unrecoverable():
+    with pytest.raises(Unrecoverable, match='Invalid attribution at polyline-to-mesh: '):
+        WireMesh3D({'a': ('not-a-number', _POLY_A)}, _H, _TOL)
+
+
+# ---------------------------------------------------------------------------
+# WireMesh3D — subsegment radii taper to zero at polyline endpoints
+# ---------------------------------------------------------------------------
+
+def test_wire_mesh_3d_subsegment_radii_single_subsegment_tapers_both_ends():
+    poly = [_pt(0, 0, 0), _pt(1, 0, 0)]
+    mesh = WireMesh3D({'a': ('5.0', poly)}, Real(1.0), _TOL)
+    assert mesh.subsegment_radii == [(Real(0), Real(0))]
+
+
+def test_wire_mesh_3d_subsegment_radii_interior_joints_use_polyline_radius():
+    poly = [_pt(0, 0, 0), _pt(1, 0, 0), _pt(2, 0, 0)]
+    mesh = WireMesh3D({'p': ('3.0', poly)}, Real(0.5), _TOL)
+    assert mesh.subsegment_radii == [
+        (Real(0), Real(3.0)),
+        (Real(3.0), Real(3.0)),
+        (Real(3.0), Real(3.0)),
+        (Real(3.0), Real(0)),
+    ]
+
+
+def test_wire_mesh_3d_subsegment_radii_independent_per_polyline():
+    # 'a' ends where 'b' starts (shared endpoint); each polyline still uses its
+    # own radius for interior joints and tapers to zero only at its own terminus.
+    poly_a = [_pt(0, 0, 0), _pt(1, 0, 0), _pt(2, 0, 0)]
+    poly_b = [_pt(2, 0, 0), _pt(3, 0, 0), _pt(4, 0, 0)]
+    mesh = WireMesh3D({'a': ('2.0', poly_a), 'b': ('4.0', poly_b)}, Real(1.0), _TOL)
+    assert mesh.subsegment_radii == [
+        (Real(0), Real(2.0)), (Real(2.0), Real(0)),
+        (Real(0), Real(4.0)), (Real(4.0), Real(0)),
+    ]
+
+
+def test_wire_mesh_3d_subsegment_radii_length_matches_subsegment_index():
+    mesh = WireMesh3D({'a': ('1.0', _POLY_A), 'b': ('1.0', _POLY_B)}, _H, _TOL)
+    assert len(mesh.subsegment_radii) == len(mesh.subsegment_index)
+
+
+def test_wire_mesh_3d_subsegment_radii_immutable():
+    mesh = WireMesh3D({'a': ('1.0', _POLY_A)}, _H, _TOL)
+    with pytest.raises(NeverImplement):
+        mesh.subsegment_radii = []
+
+
+def test_wire_mesh_3d_subsegment_radii_returns_copy():
+    mesh = WireMesh3D({'a': ('1.0', _POLY_A)}, _H, _TOL)
+    radii = mesh.subsegment_radii
+    original_len = len(radii)
+    radii.clear()
+    assert len(mesh.subsegment_radii) == original_len
 
 
 # ---------------------------------------------------------------------------

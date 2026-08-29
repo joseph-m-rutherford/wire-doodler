@@ -76,8 +76,9 @@ class WireMesh3D:
     ----------
     named_polylines:
         Mapping of segment names to (description, points) tuples, where
-        points is an ordered list of 3-D points and description is a free-form
-        label for the polyline (as returned by :func:`as_xyz`).
+        points is an ordered list of 3-D points and description is a string
+        parsed as a ``float`` radius for the polyline (as returned by
+        :func:`as_xyz`).
     h:
         Target mesh density — the approximate arc-length spacing between
         generated mesh nodes along each wire segment.  Must be positive.
@@ -106,7 +107,7 @@ class WireMesh3D:
 
         # Validate and deep-copy polylines; detect intra-polyline collisions.
         copied: dict[str, list[R3Vector]] = {}
-        descriptions_by_name: dict[str, str] = {}
+        radii_by_name: dict[str, Real] = {}
         for name, (description, points) in named_polylines.items():
             pts = [vector_copy(p) for p in points]
             if len(pts) < 2:
@@ -123,7 +124,10 @@ class WireMesh3D:
                             ])
                         )
             copied[name] = pts
-            descriptions_by_name[name] = description
+            try:
+                radii_by_name[name] = Real(description)
+            except ValueError as exc:
+                raise Unrecoverable(''.join(['Invalid attribution at polyline-to-mesh: ', str(exc)]))
 
         all_pts_flat = np.array([pt for pts in copied.values() for pt in pts])
         bbox_min = vector_copy(np.min(all_pts_flat, axis=0))
@@ -217,12 +221,12 @@ class WireMesh3D:
         self._method = PartitionMethod(method)
         self._max_n_parts = int(max_n_parts)
 
-        # Descriptions are stored in a list, indexed lexicographically by name.
-        descriptions: list[str] = []
+        # Descriptions (radii) are stored in a list, indexed lexicographically by name.
+        descriptions: list[Real] = []
         description_index_by_name: dict[str, Index] = {}
         for name in sorted(copied.keys()):
             description_index_by_name[name] = Index(len(descriptions))
-            descriptions.append(descriptions_by_name[name])
+            descriptions.append(radii_by_name[name])
         self._descriptions = descriptions
         self._description_index_by_name = description_index_by_name
 
@@ -246,6 +250,22 @@ class WireMesh3D:
                 for sub_idx in range(count):
                     subsegment_index.append((name, Index(seg_idx), Index(sub_idx), description_index))
         self._subsegment_index = subsegment_index
+
+        # Per-subsegment (start_radius, end_radius); tapers to zero at polyline endpoints.
+        subsegment_radii: list[tuple[Real, Real]] = []
+        for name, seg_idx, sub_idx, description_index in subsegment_index:
+            radius = self._descriptions[int(description_index)]
+            seg_i = int(seg_idx)
+            sub_i = int(sub_idx)
+            is_polyline_start = seg_i == 0 and sub_i == 0
+            is_polyline_end = (
+                seg_i == len(self._named_subsegment_counts[name]) - 1
+                and sub_i == int(self._named_subsegment_counts[name][seg_i]) - 1
+            )
+            start_radius = Real(0) if is_polyline_start else radius
+            end_radius = Real(0) if is_polyline_end else radius
+            subsegment_radii.append((start_radius, end_radius))
+        self._subsegment_radii = subsegment_radii
 
         # Build point registry and subsegment point pairs.
         # Compute bounding box from polyline vertices (subsegment endpoints
@@ -334,13 +354,22 @@ class WireMesh3D:
         raise NeverImplement('WireMesh3D subsegment_index is immutable')
 
     @property
-    def descriptions(self) -> list[str]:
-        '''Per-polyline description strings, indexed lexicographically by name.'''
+    def descriptions(self) -> list[Real]:
+        '''Per-polyline radii, indexed lexicographically by name.'''
         return list(self._descriptions)
 
     @descriptions.setter
     def descriptions(self, value) -> None:
         raise NeverImplement('WireMesh3D descriptions are immutable')
+
+    @property
+    def subsegment_radii(self) -> list[tuple[Real, Real]]:
+        '''Per-subsegment (start_radius, end_radius); tapers to zero at polyline endpoints.'''
+        return list(self._subsegment_radii)
+
+    @subsegment_radii.setter
+    def subsegment_radii(self, value) -> None:
+        raise NeverImplement('WireMesh3D subsegment_radii are immutable')
 
     def subsegment_endpoints(self, mesh_index: Index) -> tuple[R3Vector, R3Vector]:
         '''Endpoints of a flat-indexed subsegment.'''
@@ -430,6 +459,7 @@ class WireMesh3D:
         instance._subsegment_index = list(source._subsegment_index)
         instance._descriptions = list(source._descriptions)
         instance._description_index_by_name = dict(source._description_index_by_name)
+        instance._subsegment_radii = list(source._subsegment_radii)
         instance._point_registry = registry
         instance._subsegment_point_pairs = [
             (remap[int(a)], remap[int(b)]) for a, b in source._subsegment_point_pairs

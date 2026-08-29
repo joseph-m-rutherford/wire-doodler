@@ -20,8 +20,8 @@ _pt = r3.vector
 
 
 def _named(polylines: dict) -> dict:
-    """Wrap plain {name: points} dicts into WireMesh3D's {name: (description, points)} format."""
-    return {name: (name, points) for name, points in polylines.items()}
+    """Wrap plain {name: points} dicts into WireMesh3D's {name: (radius_str, points)} format."""
+    return {name: ('1.0', points) for name, points in polylines.items()}
 
 
 _TOL = Real(0.01)
