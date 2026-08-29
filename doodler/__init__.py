@@ -5,9 +5,10 @@ from .common import Index, Integer, Real, real_equality
 from .errors import Recoverable, Unrecoverable, NeverImplement, NotYetImplemented
 from .geometry import Shape3D, Cylinder, ClippedSphere, LeftHanded, RightHanded, Shape3DSampler, TOLERANCE, WireSegment2D
 from .r3 import R3Axes, R3Vector, Octree, vector, vector_copy, vector_equality
+from .r3.point_registry import PointRegistry
 from .io_formats.svg_reader import read_svg
 from .io_formats.vtk_writer import export_polylines
 from .geometry.wire_segments import as_xyz
 from .operators import FillChoice, WireMesh3DFill
-from .discretization import FunctionSupports, PartitionMethod, Partitioner, PointRegistry, WireMesh3D, WireScalarFunction, unify_meshes
+from .discretization import FunctionSupports, PartitionMethod, Partitioner, WireMesh3D, WireScalarFunction, unify_meshes
 from .quadrature import ModepyRule1DSource, Rule2D, RuleCache
