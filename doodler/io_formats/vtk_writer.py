@@ -12,8 +12,8 @@ def export_polylines(segments: dict[str, list[R3Vector]], filename: str) -> None
     Parameters
     ----------
     segments:
-        Output of :func:`as_xyz` — a dict mapping names to lists of
-        length-3 numpy arrays in global x, y, z coordinates.
+        A dict mapping names to lists of length-3 numpy arrays in global
+        x, y, z coordinates (the points list of each :func:`as_xyz` entry).
     filename:
         Destination file path.  Overwrites existing files.
 

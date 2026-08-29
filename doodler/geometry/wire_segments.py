@@ -55,7 +55,7 @@ def as_xyz(
     segments: dict[str, "WireSegment2D"],
     uvw: R3Axes,
     xyz_offset: R3Vector,
-) -> dict[str, list[R3Vector]]:
+) -> dict[str, tuple[str, list[R3Vector]]]:
     """Convert 2-D SVG segments into 3-D global coordinates.
 
     Each (u, v) point in *segments* is treated as a position in the plane
@@ -75,19 +75,22 @@ def as_xyz(
 
     Returns
     -------
-    dict mapping each segment name to a list of length-3 ``numpy`` arrays
-    (dtype :data:`Real`) in global x, y, z coordinates.
+    dict mapping each segment name to a (description, points) tuple, where
+    description is the segment's :attr:`WireSegment2D.description` and points
+    is a list of length-3 ``numpy`` arrays (dtype :data:`Real`) in global
+    x, y, z coordinates.  This is the format expected by the
+    ``named_polylines`` argument of :class:`~doodler.WireMesh3D`.
     """
     frame = axes3d_copy(uvw)
     offset = vector_copy(xyz_offset)
     u_hat = frame[0]
     v_hat = frame[1]
 
-    result: dict[str, list[R3Vector]] = {}
+    result: dict[str, tuple[str, list[R3Vector]]] = {}
     for name, segment in segments.items():
         xyz_points: list[R3Vector] = []
         for u, v in segment.points:
             point = np.array(u * u_hat + v * v_hat, dtype=Real) + offset
             xyz_points.append(point)
-        result[name] = xyz_points
+        result[name] = (segment.description, xyz_points)
     return result

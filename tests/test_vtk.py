@@ -17,7 +17,8 @@ def test_as_xyz_identity_frame_line():
     """With identity frame and zero offset, x,y map directly to x,y with z=0."""
     segs = {'seg1': WireSegment2D([(Real(0), Real(0)), (Real(10), Real(20))], 'segment one')}
     result = as_xyz(segs, _IDENTITY_FRAME, _ZERO_OFFSET)
-    pts = result['seg1']
+    description, pts = result['seg1']
+    assert description == 'segment one'
     assert len(pts) == 2
     assert vector_equality(pts[0], np.array([0, 0, 0], dtype=Real), TOLERANCE)
     assert vector_equality(pts[1], np.array([10, 20, 0], dtype=Real), TOLERANCE)
@@ -26,7 +27,8 @@ def test_as_xyz_identity_frame_line():
 def test_as_xyz_identity_frame_polyline():
     segs = {'tri': WireSegment2D([(Real(0), Real(0)), (Real(5), Real(10)), (Real(10), Real(0))], 'triangle')}
     result = as_xyz(segs, _IDENTITY_FRAME, _ZERO_OFFSET)
-    pts = result['tri']
+    description, pts = result['tri']
+    assert description == 'triangle'
     assert len(pts) == 3
     assert vector_equality(pts[0], np.array([0, 0, 0], dtype=Real), TOLERANCE)
     assert vector_equality(pts[1], np.array([5, 10, 0], dtype=Real), TOLERANCE)
@@ -38,7 +40,7 @@ def test_as_xyz_with_offset():
     segs = {'seg1': WireSegment2D([(Real(0), Real(0)), (Real(10), Real(20))], 'segment one')}
     offset = np.array([1, 2, 3], dtype=Real)
     result = as_xyz(segs, _IDENTITY_FRAME, offset)
-    pts = result['seg1']
+    _description, pts = result['seg1']
     assert vector_equality(pts[0], np.array([1, 2, 3], dtype=Real), TOLERANCE)
     assert vector_equality(pts[1], np.array([11, 22, 3], dtype=Real), TOLERANCE)
 
@@ -49,7 +51,7 @@ def test_as_xyz_rotated_frame():
     frame = np.array([[0, 1, 0], [0, 0, 1], [1, 0, 0]], dtype=Real)
     segs = {'r': WireSegment2D([(Real(1), Real(2)), (Real(3), Real(4))], 'rotated line')}
     result = as_xyz(segs, frame, _ZERO_OFFSET)
-    pts = result['r']
+    _description, pts = result['r']
     # point (u=1, v=2) -> 1*y_hat + 2*z_hat = (0, 1, 2)
     assert vector_equality(pts[0], np.array([0, 1, 2], dtype=Real), TOLERANCE)
     # point (u=3, v=4) -> 3*y_hat + 4*z_hat = (0, 3, 4)
@@ -62,7 +64,7 @@ def test_as_xyz_returns_real_dtype():
         'tri': WireSegment2D([(Real(0), Real(0)), (Real(5), Real(10)), (Real(10), Real(0))], 'triangle'),
     }
     result = as_xyz(segs, _IDENTITY_FRAME, _ZERO_OFFSET)
-    for pts in result.values():
+    for _description, pts in result.values():
         for pt in pts:
             assert pt.dtype == Real
 

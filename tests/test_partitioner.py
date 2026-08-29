@@ -19,6 +19,11 @@ from doodler.discretization.partitioner import PartitionMethod, Partitioner
 _pt = r3.vector
 
 
+def _named(polylines: dict) -> dict:
+    """Wrap plain {name: points} dicts into WireMesh3D's {name: (description, points)} format."""
+    return {name: (name, points) for name, points in polylines.items()}
+
+
 _TOL = Real(0.01)
 
 
@@ -28,14 +33,14 @@ def _simple_mesh(h):
     depends on *h*.
     """
     poly = [_pt(0, 0, 0), _pt(1, 0, 0), _pt(2, 0, 0)]
-    return WireMesh3D({'p': poly}, h, _TOL)
+    return WireMesh3D(_named({'p': poly}), h, _TOL)
 
 
 def _two_segment_mesh():
     """Two separated polylines — no shared vertices, no function pairs."""
     poly_a = [_pt(0, 0, 0), _pt(1, 0, 0)]
     poly_b = [_pt(5, 0, 0), _pt(6, 0, 0)]
-    return WireMesh3D({'a': poly_a, 'b': poly_b}, Real(1.0), _TOL)
+    return WireMesh3D(_named({'a': poly_a, 'b': poly_b}), Real(1.0), _TOL)
 
 
 # ---------------------------------------------------------------------------
@@ -103,7 +108,7 @@ def test_partitioner_octree_two_parts_spatially_separated():
     poly_b = [_pt(100, 0, 0), _pt(110, 0, 0), _pt(120, 0, 0)]
     # h=15.0: each length-1 segment -> 1 subsegment; each length-10 segment -> 1
     # subsegment.  Both polylines contribute exactly 1 function pair.
-    mesh = WireMesh3D({'a': poly_a, 'b': poly_b}, Real(15.0), _TOL, max_n_parts=2)
+    mesh = WireMesh3D(_named({'a': poly_a, 'b': poly_b}), Real(15.0), _TOL, max_n_parts=2)
     p = mesh.function_supports.partitioner
     assert p.partition_count == 2
     # Each partition should contain exactly 1 function.
@@ -120,7 +125,7 @@ def test_partitioner_octree_max_n_parts_exceeds_distinct_cells_falls_back():
     falls back to the coarsest depth (1 occupied cell)."""
     # Only 1 function pair exists; asking for 3 partitions exceeds what's achievable.
     mesh_no_part = WireMesh3D(
-        {'p': [_pt(0, 0, 0), _pt(1, 0, 0), _pt(2, 0, 0)]},
+        _named({'p': [_pt(0, 0, 0), _pt(1, 0, 0), _pt(2, 0, 0)]}),
         Real(1.0),
         _TOL,
     )
@@ -282,7 +287,7 @@ def test_wire_mesh_max_n_parts_immutable():
 def test_wire_mesh_max_n_parts_zero_raises():
     with pytest.raises(Unrecoverable):
         WireMesh3D(
-            {'p': [_pt(0, 0, 0), _pt(1, 0, 0)]},
+            _named({'p': [_pt(0, 0, 0), _pt(1, 0, 0)]}),
             Real(1.0),
             _TOL,
             max_n_parts=0,
@@ -327,7 +332,7 @@ def _two_parallel_lines_mesh(h, max_n_parts, method):
     """
     poly_a = [_pt(0, 0, 0), _pt(1, 0, 0), _pt(2, 0, 0)]
     poly_b = [_pt(0, 1, 0), _pt(1, 1, 0), _pt(2, 1, 0)]
-    return WireMesh3D({'a': poly_a, 'b': poly_b}, h, _TOL,
+    return WireMesh3D(_named({'a': poly_a, 'b': poly_b}), h, _TOL,
                       method=method, max_n_parts=max_n_parts)
 
 
@@ -341,12 +346,12 @@ def _rectangle_mesh(h, max_n_parts, method):
     With h >= 1.0, only corner shared vertices are produced (4 functions).
     With h = 0.5, edge midpoints are also produced (8 functions total).
     """
-    return WireMesh3D({
+    return WireMesh3D(_named({
         'bottom': [_pt(0, 0, 0), _pt(1, 0, 0)],
         'right':  [_pt(1, 0, 0), _pt(1, 1, 0)],
         'top':    [_pt(1, 1, 0), _pt(0, 1, 0)],
         'left':   [_pt(0, 1, 0), _pt(0, 0, 0)],
-    }, h, _TOL, method=method, max_n_parts=max_n_parts)
+    }), h, _TOL, method=method, max_n_parts=max_n_parts)
 
 
 def _shared_vertex_xyz(mesh, fn_idx):
