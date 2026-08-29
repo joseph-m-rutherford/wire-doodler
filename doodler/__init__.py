@@ -7,7 +7,7 @@ from .geometry import Shape3D, Cylinder, ClippedSphere, LeftHanded, RightHanded,
 from .r3 import R3Axes, R3Vector, Octree, vector, vector_copy, vector_equality
 from .r3.point_registry import PointRegistry
 from .io_formats.svg_reader import read_svg
-from .io_formats.vtk_writer import export_polylines
+from .io_formats.vtk_writer import export_polylines, export_triangle_mesh
 from .geometry.wire_segments import as_xyz
 from .operators import FillChoice, WireMesh3DFill
 from .discretization import FunctionSupports, PartitionMethod, Partitioner, WireMesh3D, WireScalarFunction, unify_meshes

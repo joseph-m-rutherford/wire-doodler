@@ -51,6 +51,25 @@ def _segment_segment_closest_points(p0, p1, q0, q1):
     return (closest1, closest2)
 
 
+def _perpendicular_axes(w_axis: R3Vector) -> tuple[R3Vector, R3Vector]:
+    """Return (u_axis, v_axis) completing a right-handed orthonormal frame with *w_axis*."""
+    if abs(w_axis[0]) <= abs(w_axis[1]) and abs(w_axis[0]) <= abs(w_axis[2]):
+        v_segment = vector_copy((0, w_axis[2], -w_axis[1]))
+    elif abs(w_axis[1]) <= abs(w_axis[2]) and abs(w_axis[1]) <= abs(w_axis[0]):
+        v_segment = vector_copy((-w_axis[2], 0, w_axis[0]))
+    else:
+        v_segment = vector_copy((w_axis[1], -w_axis[0], 0))
+    v_axis = v_segment / np.sqrt(np.dot(v_segment, v_segment))
+    u_axis = np.cross(v_axis, w_axis)
+    return (u_axis, v_axis)
+
+
+def _regular_polygon_circumradius(radius: Real, num_sides: int) -> Real:
+    """Circumradius of a regular *num_sides*-gon whose area equals a circle of *radius*."""
+    n = Real(num_sides)
+    return Real(radius * np.sqrt(2.0 * np.pi / (n * np.sin(2.0 * np.pi / n))))
+
+
 def _is_shared_endpoint_intersection(
     p0: R3Vector,
     p1: R3Vector,
@@ -437,6 +456,100 @@ class WireMesh3D:
     @function_supports.setter
     def function_supports(self, value) -> None:
         raise NeverImplement('WireMesh3D function_supports are immutable')
+
+    def export_tri_mesh(self, num_sides: int) -> tuple[list[R3Vector], list[tuple[Index, Index, Index]]]:
+        '''Triangulate the tapered wire surfaces of this mesh.
+
+        Every subsegment is triangulated independently as a tapered cylinder
+        (frustum) between its two end radii, using a regular *num_sides*-gon
+        ring at each nonzero-radius end.  Ring circumradii are scaled so each
+        ring's polygon area matches the continuous circular cross section at
+        that radius.  Ends tapering to zero radius collapse to a single apex
+        point, forming a cone.  Subsegments with zero radius at both ends
+        (degenerate single-subsegment polylines) contribute no geometry.
+
+        Parameters
+        ----------
+        num_sides:
+            Number of vertices used to approximate each circular cross
+            section (e.g. ``num_sides=6`` yields a hexagonal cross section).
+            Must be >= 3.
+
+        Returns
+        -------
+        vertices : list[R3Vector]
+            Flat list of triangle-mesh vertex positions.
+        triangles : list[tuple[Index, Index, Index]]
+            Triangle connectivity as index triples into *vertices*.
+        '''
+        n = int(num_sides)
+        if n < 3:
+            raise Unrecoverable('WireMesh3D: export_tri_mesh num_sides must be >= 3')
+
+        angles = [Real(2.0 * np.pi * k / n) for k in range(n)]
+        cos_a = [Real(np.cos(a)) for a in angles]
+        sin_a = [Real(np.sin(a)) for a in angles]
+
+        vertices: list[R3Vector] = []
+        triangles: list[tuple[Index, Index, Index]] = []
+
+        for mesh_idx in range(len(self._subsegment_index)):
+            start, end = self.subsegment_endpoints(Index(mesh_idx))
+            r0, r1 = self._subsegment_radii[mesh_idx]
+            axis = end - start
+            height = Real(np.linalg.norm(axis))
+            if height <= TOLERANCE:
+                continue
+            w_axis = axis / height
+            u_axis, v_axis = _perpendicular_axes(w_axis)
+
+            has_ring0 = r0 > TOLERANCE
+            has_ring1 = r1 > TOLERANCE
+            if not has_ring0 and not has_ring1:
+                continue
+
+            ring0_base = None
+            ring1_base = None
+            if has_ring0:
+                radius0 = _regular_polygon_circumradius(r0, n)
+                ring0_base = len(vertices)
+                for k in range(n):
+                    vertices.append(start + radius0 * (cos_a[k] * u_axis + sin_a[k] * v_axis))
+            if has_ring1:
+                radius1 = _regular_polygon_circumradius(r1, n)
+                ring1_base = len(vertices)
+                for k in range(n):
+                    vertices.append(end + radius1 * (cos_a[k] * u_axis + sin_a[k] * v_axis))
+
+            if has_ring0 and has_ring1:
+                for k in range(n):
+                    k1 = (k + 1) % n
+                    a0 = Index(ring0_base + k)
+                    a1 = Index(ring0_base + k1)
+                    b0 = Index(ring1_base + k)
+                    b1 = Index(ring1_base + k1)
+                    triangles.append((a0, a1, b0))
+                    triangles.append((a1, b1, b0))
+            elif has_ring0:
+                # Cone tapering to zero radius at the subsegment end.
+                apex = Index(len(vertices))
+                vertices.append(vector_copy(end))
+                for k in range(n):
+                    k1 = (k + 1) % n
+                    a0 = Index(ring0_base + k)
+                    a1 = Index(ring0_base + k1)
+                    triangles.append((a0, a1, apex))
+            else:
+                # Cone tapering to zero radius at the subsegment start.
+                apex = Index(len(vertices))
+                vertices.append(vector_copy(start))
+                for k in range(n):
+                    k1 = (k + 1) % n
+                    b0 = Index(ring1_base + k)
+                    b1 = Index(ring1_base + k1)
+                    triangles.append((apex, b1, b0))
+
+        return vertices, triangles
 
     @classmethod
     def _with_shared_registry(

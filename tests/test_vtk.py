@@ -4,7 +4,7 @@
 import numpy as np
 import pytest
 
-from doodler import as_xyz, export_polylines, Real, Unrecoverable, WireSegment2D, vector_equality
+from doodler import as_xyz, export_polylines, export_triangle_mesh, Real, Unrecoverable, WireSegment2D, vector_equality
 from doodler.r3 import TOLERANCE
 
 
@@ -207,3 +207,89 @@ def test_export_polylines_empty_segments(tmp_path):
 def test_export_polylines_bad_path_raises():
     with pytest.raises(Unrecoverable):
         export_polylines({}, '/nonexistent/directory/out.vtk')
+
+
+# ---------------------------------------------------------------------------
+# export_triangle_mesh tests
+# ---------------------------------------------------------------------------
+
+
+def _parse_vtk_polygons(path):
+    """Parse a legacy VTK POLYDATA file with POLYGONS; return (points, triangles)."""
+    with open(path, encoding='ascii') as f:
+        lines_raw = f.read().splitlines()
+    points = []
+    triangles = []
+    i = 0
+    while i < len(lines_raw):
+        tok = lines_raw[i].strip()
+        if tok.upper().startswith('POINTS'):
+            n = int(tok.split()[1])
+            i += 1
+            flat = []
+            while len(flat) < n * 3:
+                for chunk in lines_raw[i].split():
+                    flat.append(float(chunk))
+                i += 1
+            points = [(flat[j], flat[j+1], flat[j+2]) for j in range(0, len(flat), 3)]
+        elif tok.upper().startswith('POLYGONS'):
+            n_triangles = int(tok.split()[1])
+            i += 1
+            for _ in range(n_triangles):
+                nums = list(map(int, lines_raw[i].split()))
+                triangles.append(tuple(nums[1:nums[0]+1]))
+                i += 1
+        else:
+            i += 1
+    return points, triangles
+
+
+def _make_tri_mesh():
+    vertices = [
+        np.array([0, 0, 0], dtype=Real),
+        np.array([1, 0, 0], dtype=Real),
+        np.array([0, 1, 0], dtype=Real),
+        np.array([0, 0, 1], dtype=Real),
+    ]
+    triangles = [(0, 1, 2), (0, 1, 3)]
+    return vertices, triangles
+
+
+def test_export_triangle_mesh_creates_file(tmp_path):
+    out = str(tmp_path / 'tri.vtk')
+    vertices, triangles = _make_tri_mesh()
+    export_triangle_mesh(vertices, triangles, out)
+    import os
+    assert os.path.isfile(out)
+
+
+def test_export_triangle_mesh_point_and_triangle_counts(tmp_path):
+    out = str(tmp_path / 'tri.vtk')
+    vertices, triangles = _make_tri_mesh()
+    export_triangle_mesh(vertices, triangles, out)
+    pts, tris = _parse_vtk_polygons(out)
+    assert len(pts) == len(vertices)
+    assert len(tris) == len(triangles)
+
+
+def test_export_triangle_mesh_connectivity(tmp_path):
+    out = str(tmp_path / 'tri.vtk')
+    vertices, triangles = _make_tri_mesh()
+    export_triangle_mesh(vertices, triangles, out)
+    pts, tris = _parse_vtk_polygons(out)
+    expected_points = [tuple(float(c) for c in v) for v in vertices]
+    assert pts == expected_points
+    assert tris == triangles
+
+
+def test_export_triangle_mesh_empty(tmp_path):
+    out = str(tmp_path / 'tri.vtk')
+    export_triangle_mesh([], [], out)
+    pts, tris = _parse_vtk_polygons(out)
+    assert pts == []
+    assert tris == []
+
+
+def test_export_triangle_mesh_bad_path_raises():
+    with pytest.raises(Unrecoverable):
+        export_triangle_mesh([], [], '/nonexistent/directory/tri.vtk')

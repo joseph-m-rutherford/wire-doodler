@@ -49,3 +49,46 @@ def export_polylines(segments: dict[str, list[R3Vector]], filename: str) -> None
                 f.write(' '.join([str(len(indices))] + [str(i) for i in indices]) + '\n')
     except OSError as exc:
         raise Unrecoverable(exc)
+
+
+def export_triangle_mesh(
+    vertices: list[R3Vector],
+    triangles: list[tuple[int, int, int]],
+    filename: str,
+) -> None:
+    """Write a linear triangle surface mesh to a legacy VTK ASCII POLYGONS file.
+
+    Parameters
+    ----------
+    vertices:
+        Flat list of length-3 numpy arrays in global x, y, z coordinates
+        (e.g. as returned by :meth:`~doodler.WireMesh3D.export_tri_mesh`).
+    triangles:
+        Triangle connectivity as index triples into *vertices*.
+    filename:
+        Destination file path.  Overwrites existing files.
+
+    Raises
+    ------
+    Unrecoverable:
+        If the output file cannot be written.
+    """
+    n_points = len(vertices)
+    n_triangles = len(triangles)
+    total_size = n_triangles * 4  # 3 indices + 1 count, per triangle
+
+    try:
+        with open(filename, 'w', encoding='ascii') as f:
+            f.write('# vtk DataFile Version 2.0\n')
+            f.write('wire-doodler triangle mesh\n')
+            f.write('ASCII\n')
+            f.write('DATASET POLYDATA\n')
+            f.write(f'POINTS {n_points} float\n')
+            for pt in vertices:
+                f.write(f'{float(pt[0])} {float(pt[1])} {float(pt[2])}\n')
+            f.write(f'POLYGONS {n_triangles} {total_size}\n')
+            for i0, i1, i2 in triangles:
+                f.write(f'3 {int(i0)} {int(i1)} {int(i2)}\n')
+    except OSError as exc:
+        raise Unrecoverable(exc)
+
