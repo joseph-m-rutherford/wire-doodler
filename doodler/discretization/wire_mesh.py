@@ -143,8 +143,14 @@ class WireMesh3D:
                             ])
                         )
             copied[name] = pts
+            _RADIUS_PREFIX = 'r='
+            if not description.startswith(_RADIUS_PREFIX):
+                raise Unrecoverable(
+                    ''.join(['Invalid attribution at polyline-to-mesh: description "', description,
+                             '" must start with "', _RADIUS_PREFIX, '"'])
+                )
             try:
-                radii_by_name[name] = Real(description)
+                radii_by_name[name] = Real(description[len(_RADIUS_PREFIX):])
             except ValueError as exc:
                 raise Unrecoverable(''.join(['Invalid attribution at polyline-to-mesh: ', str(exc)]))
 
